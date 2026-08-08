@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="बहीखाता">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1B2A4A">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>मेरा बहीखाता — मासिक हिसाब</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EFEAE0;
+    --paper-line:#DCD4C2;
+    --ink:#1B2A4A;
+    --ink-soft:#4C5A78;
+    --gold:#B8860B;
+    --gold-soft:#D9B65C;
+    --income:#2E7D5B;
+    --income-bg:#E3EEE6;
+    --expense:#B5473A;
+    --expense-bg:#F3E4E0;
+    --invest:#1F6F78;
+    --invest-bg:#E1EDEE;
+    --card:#FBF9F4;
+    --shadow: 0 1px 2px rgba(27,42,74,0.08), 0 4px 14px rgba(27,42,74,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      repeating-linear-gradient(180deg, transparent, transparent 37px, var(--paper-line) 38px),
+      var(--paper);
+    font-family:'Inter', sans-serif;
+    color:var(--ink);
+    min-height:100vh;
+    padding-bottom:60px;
+  }
+  ::selection{ background:var(--gold-soft); }
+
+  /* ===== Header ===== */
+  header{
+    position:relative;
+    background:var(--ink);
+    color:var(--paper);
+    padding:22px 20px 20px 34px;
+    overflow:hidden;
+  }
+  header::before{
+    content:'';
+    position:absolute; left:0; top:0; bottom:0; width:14px;
+    background:repeating-linear-gradient(180deg, var(--gold-soft) 0 3px, var(--ink) 3px 16px);
+    box-shadow: inset -3px 0 6px rgba(0,0,0,0.35);
+  }
+  .brand{
+    font-family:'Fraunces', serif;
+    font-size:24px;
+    font-weight:600;
+    letter-spacing:0.3px;
+    display:flex;
+    align-items:baseline;
+    gap:10px;
+    cursor:pointer;
+  }
+  .brand small{
+    font-family:'Inter',sans-serif;
+    font-size:12px;
+    font-weight:500;
+    color:var(--gold-soft);
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+  }
+  .month-nav{
+    margin-top:14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .icon-btn{
+    width:32px;height:32px;border-radius:50%;
+    border:1px solid rgba(255,255,255,0.25);
+    background:transparent; color:var(--paper);
+    font-size:15px; cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .15s;
+    flex-shrink:0;
+  }
+  .icon-btn:hover{ background:rgba(255,255,255,0.12); }
+  .month-label{
+    font-family:'Fraunces', serif;
+    font-size:18px;
+    flex:1;
+    text-align:center;
+    font-variant-numeric:tabular-nums;
+  }
+  .month-today{
+    font-size:12px;
+    color:var(--gold-soft);
+    border:1px solid rgba(217,182,92,0.5);
+    padding:5px 10px;
+    border-radius:20px;
+    cursor:pointer;
+    background:transparent;
+    font-family:'Inter',sans-serif;
+    flex-shrink:0;
+  }
+  .month-today:hover{ background:rgba(217,182,92,0.12); }
+
+  /* ===== Layout ===== */
+  main{ max-width:900px; margin:0 auto; padding:0 20px; }
+
+  /* ===== Dashboard ===== */
+  .dash-totals{
+    margin-top:-18px;
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:12px;
+  }
+  .dash-card{
+    background:var(--card);
+    border-radius:10px;
+    padding:16px 16px;
+    box-shadow:var(--shadow);
+    border-top:3px solid var(--ink-soft);
+  }
+  .dash-card.income{ border-top-color:var(--income); }
+  .dash-card.expense{ border-top-color:var(--expense); }
+  .dash-card.invest{ border-top-color:var(--invest); }
+  .dash-card.balance{ border-top-color:var(--gold); grid-column: 1 / -1; }
+  .dash-label{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.8px;
+    color:var(--ink-soft); font-weight:600;
+  }
+  .dash-value{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:22px; font-weight:600;
+    margin-top:6px;
+    letter-spacing:-0.3px;
+  }
+  .dash-sub{
+    font-size:11px; color:var(--ink-soft); margin-top:4px;
+  }
+  .dash-card.balance .dash-value{ font-size:28px; color:var(--ink); }
+
+  .open-month-btn{
+    display:block; width:100%; margin-top:18px;
+    padding:14px; border:none; border-radius:10px;
+    background:var(--ink); color:var(--paper);
+    font-weight:600; font-size:14px; cursor:pointer; text-align:center;
+    font-family:'Inter',sans-serif;
+  }
+  .open-month-btn:hover{ background:#28395e; }
+
+  .months-title{
+    font-family:'Fraunces', serif;
+    font-size:17px; font-weight:600;
+    margin:26px 0 10px;
+  }
+  .month-row{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--card);
+    padding:13px 16px;
+    border-radius:8px;
+    margin-bottom:6px;
+    box-shadow:var(--shadow);
+    cursor:pointer;
+  }
+  .month-row:hover{ background:#f5f2e9; }
+  .month-row .m-name{ font-weight:600; font-size:14.5px; }
+  .month-row .m-bal{ font-family:'IBM Plex Mono', monospace; font-size:14px; color:var(--ink-soft); }
+  .month-row .m-bal.neg{ color:var(--expense); }
+  .empty-dash{
+    text-align:center; padding:30px 20px; color:var(--ink-soft);
+    font-family:'Fraunces',serif; font-size:14.5px;
+  }
+
+  /* ===== Summary strip (month screen) ===== */
+  .summary{
+    margin-top:-18px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+  }
+  .sum-card{
+    background:var(--card);
+    border-radius:10px;
+    padding:14px 16px;
+    box-shadow:var(--shadow);
+    border-top:3px solid var(--ink-soft);
+  }
+  .sum-card.income{ border-top-color:var(--income); }
+  .sum-card.expense{ border-top-color:var(--expense); }
+  .sum-card.invest{ border-top-color:var(--invest); }
+  .sum-card.net{ border-top-color:var(--gold); }
+  .sum-label{
+    font-size:11px; text-transform:uppercase; letter-spacing:0.8px;
+    color:var(--ink-soft); font-weight:600;
+  }
+  .sum-value{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:17px; font-weight:600;
+    margin-top:6px;
+    letter-spacing:-0.3px;
+  }
+
+  /* ===== Carry-forward banner ===== */
+  .carry-banner{
+    margin-top:14px;
+    background:var(--ink);
+    color:var(--paper);
+    border-radius:10px;
+    padding:14px 18px;
+    display:flex;
+    align-items:center;
+    box-shadow:var(--shadow);
+  }
+  .carry-side{ flex:1; }
+  .carry-side .c-label{
+    font-size:10px; text-transform:uppercase; letter-spacing:0.8px;
+    color:var(--gold-soft); font-weight:600;
+  }
+  .carry-side .c-value{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:17px; font-weight:600; margin-top:4px;
+  }
+  .carry-side.right{ text-align:right; }
+  .carry-side.right .c-value{ position:relative; display:inline-block; }
+  .carry-side.right .c-value::after{
+    content:''; position:absolute; left:0; right:0; bottom:-5px; height:2px; background:var(--gold);
+  }
+  .carry-side.right .c-value::before{
+    content:''; position:absolute; left:0; right:0; bottom:-9px; height:1px; background:var(--gold);
+  }
+  .carry-arrow{ font-size:16px; color:var(--gold-soft); padding:0 12px; }
+  .carry-edit{
+    background:none; border:1px solid rgba(217,182,92,0.5); color:var(--gold-soft);
+    border-radius:6px; font-size:11px; padding:3px 8px; cursor:pointer; margin-top:5px;
+  }
+  .carry-edit:hover{ background:rgba(217,182,92,0.12); }
+  .carry-input-row{ display:flex; gap:6px; margin-top:5px; }
+  .carry-input-row input{ width:110px; padding:6px 8px; font-size:13px; border-radius:6px; border:none; }
+  .carry-input-row button{ font-size:11px; padding:0 10px; border-radius:6px; border:none; cursor:pointer; }
+  .carry-input-row .save-b{ background:var(--gold-soft); color:var(--ink); font-weight:600; }
+  .carry-input-row .cancel-b{ background:rgba(255,255,255,0.15); color:var(--paper); }
+  .carry-note{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:8px; }
+
+  /* ===== Add form ===== */
+  .add-panel{
+    background:var(--card);
+    border-radius:12px;
+    margin-top:22px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .form-body{ padding:18px; display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+  .form-body .full{ grid-column:1 / -1; }
+  label{ font-size:11px; font-weight:600; color:var(--ink-soft); text-transform:uppercase; letter-spacing:0.6px; display:block; margin-bottom:5px; }
+  input, select, textarea{
+    width:100%; padding:10px 11px; border-radius:7px;
+    border:1px solid #D8D0BE; background:#fff;
+    font-family:'Inter',sans-serif; font-size:14px; color:var(--ink);
+  }
+  textarea{ resize:vertical; min-height:90px; line-height:1.5; }
+  input:focus, select:focus, textarea:focus{ outline:2px solid var(--gold-soft); outline-offset:1px; border-color:var(--gold); }
+  input[type=number]{ font-family:'IBM Plex Mono', monospace; }
+  .dash-card.clickable{ cursor:pointer; }
+  .dash-card.clickable:hover{ background:#f5f2e9; }
+  .add-btn{
+    padding:12px; border:none; border-radius:8px;
+    background:var(--ink); color:var(--paper);
+    font-weight:600; font-size:14px; cursor:pointer;
+    letter-spacing:0.3px;
+  }
+  .add-btn:hover{ background:#28395e; }
+  .add-btn:disabled{ opacity:0.5; cursor:not-allowed; }
+  .cancel-edit-btn{
+    padding:12px; border:1px solid #D8D0BE; border-radius:8px;
+    background:#fff; color:var(--ink-soft);
+    font-weight:600; font-size:13px; cursor:pointer;
+  }
+  .editing-tag{
+    grid-column:1/-1; font-size:12px; color:var(--gold); font-weight:600;
+    background:#FBF3DE; padding:6px 10px; border-radius:6px;
+  }
+
+  /* ===== Ledger table ===== */
+  .ledger{ margin-top:26px; }
+  .ledger-title{
+    font-family:'Fraunces', serif;
+    font-size:16px; font-weight:600;
+    margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .ledger-title .count{ font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-soft); font-weight:500; }
+  .row{
+    display:grid;
+    grid-template-columns: 8px 1fr auto 30px 30px;
+    align-items:center;
+    gap:10px;
+    background:var(--card);
+    padding:10px 12px;
+    border-radius:8px;
+    margin-bottom:6px;
+    box-shadow:var(--shadow);
+  }
+  .row .bar{ align-self:stretch; border-radius:3px; }
+  .row.income .bar{ background:var(--income); }
+  .row.expense .bar{ background:var(--expense); }
+  .row.invest .bar{ background:var(--invest); }
+  .row .info .cat{ font-weight:600; font-size:14px; }
+  .row .amt{ font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:15px; text-align:right; white-space:nowrap; }
+  .row.income .amt{ color:var(--income); }
+  .row.expense .amt{ color:var(--expense); }
+  .row.invest .amt{ color:var(--invest); }
+  .row .edit, .row .del{
+    width:26px;height:26px;border-radius:50%;border:none;
+    background:transparent; color:var(--ink-soft); cursor:pointer; font-size:14px;
+  }
+  .row .edit:hover{ background:var(--invest-bg); color:var(--invest); }
+  .row .del:hover{ background:var(--expense-bg); color:var(--expense); }
+  .empty{
+    text-align:center; padding:30px 20px; color:var(--ink-soft);
+    font-family:'Fraunces',serif; font-size:14px;
+  }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:8px;
+    font-size:13px; opacity:0; transition:all .25s; pointer-events:none; box-shadow:var(--shadow);
+    max-width:90%; text-align:center; z-index:2000;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width:640px){
+    .summary{ grid-template-columns:repeat(2,1fr); }
+    .form-body{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand" id="brandHome">मेरा बहीखाता <small>Personal Ledger</small></div>
+  <div class="month-nav" id="monthNav" style="display:none">
+    <button class="icon-btn" id="backToDash" title="Dashboard">🏠</button>
+    <button class="icon-btn" id="prevMonth">‹</button>
+    <div class="month-label" id="monthLabel">—</div>
+    <button class="icon-btn" id="nextMonth">›</button>
+    <button class="month-today" id="gotoToday">आज</button>
+  </div>
+  <div class="month-nav" id="breakdownNav" style="display:none">
+    <button class="icon-btn" id="backToDash2" title="Dashboard">🏠</button>
+    <div class="month-label" id="breakdownTitle">—</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===== DASHBOARD SCREEN ===== -->
+  <section id="dashboardScreen">
+    <div class="dash-totals">
+      <div class="dash-card income clickable" id="cardIncome">
+        <div class="dash-label">कुल आय (सभी महीने)</div>
+        <div class="dash-value" id="dashIncome">KD 0.000</div>
+      </div>
+      <div class="dash-card expense clickable" id="cardExpense">
+        <div class="dash-label">कुल खर्च (सभी महीने)</div>
+        <div class="dash-value" id="dashExpense">KD 0.000</div>
+      </div>
+      <div class="dash-card invest clickable" id="cardInvest">
+        <div class="dash-label">कुल निवेश (सभी महीने)</div>
+        <div class="dash-value" id="dashInvest">KD 0.000</div>
+        <div class="dash-sub">रिटर्न आने पर उसी महीने income में जोड़ें और यहां से entry edit/delete कर दें</div>
+      </div>
+      <div class="dash-card balance">
+        <div class="dash-label">अभी का बैलेंस</div>
+        <div class="dash-value" id="dashBalance">KD 0.000</div>
+      </div>
+    </div>
+
+    <button class="open-month-btn" id="openCurrentMonth">+ इस महीने की एंट्री खोलें / जोड़ें</button>
+
+    <div class="months-title">सभी महीने</div>
+    <div id="monthsList"></div>
+  </section>
+
+  <!-- ===== BREAKDOWN SCREEN ===== -->
+  <section id="breakdownScreen" style="display:none">
+    <div class="months-title" id="breakdownTotal">कुल: KD 0.000</div>
+    <div id="breakdownList"></div>
+  </section>
+
+  <!-- ===== MONTH SCREEN ===== -->
+  <section id="monthScreen" style="display:none">
+    <section class="summary">
+      <div class="sum-card income">
+        <div class="sum-label">आय (Income)</div>
+        <div class="sum-value" id="sumIncome">KD 0.000</div>
+      </div>
+      <div class="sum-card expense">
+        <div class="sum-label">खर्च (Expense)</div>
+        <div class="sum-value" id="sumExpense">KD 0.000</div>
+      </div>
+      <div class="sum-card invest">
+        <div class="sum-label">निवेश (Investment)</div>
+        <div class="sum-value" id="sumInvest">KD 0.000</div>
+      </div>
+      <div class="sum-card net">
+        <div class="sum-label">इस माह की बचत</div>
+        <div class="sum-value" id="sumNet">KD 0.000</div>
+      </div>
+    </section>
+
+    <div class="carry-banner">
+      <div class="carry-side">
+        <div class="c-label">आगे लाया गया (पिछले माह से)</div>
+        <div class="c-value" id="carryOpen">KD 0.000</div>
+        <div id="editArea"></div>
+      </div>
+      <div class="carry-arrow">→</div>
+      <div class="carry-side right">
+        <div class="c-label">आगे ले जाया गया (अगले माह में)</div>
+        <div class="c-value" id="carryClose">KD 0.000</div>
+      </div>
+    </div>
+    <div class="carry-note">यह बैलेंस अपने आप अगले महीने में "आगे लाया गया" बन जाएगा</div>
+
+    <section class="add-panel">
+      <form class="form-body" id="addForm">
+        <div class="full" id="editingTagWrap" style="display:none">
+          <div class="editing-tag">✎ एंट्री एडिट हो रही है</div>
+        </div>
+        <div>
+          <label>राशि (Amount KD)</label>
+          <input type="number" id="fAmount" min="0" step="0.001" placeholder="0.000" required>
+        </div>
+        <div>
+          <label>टाइप (Type)</label>
+          <select id="fType">
+            <option value="income">➕ आय</option>
+            <option value="expense">➖ खर्च</option>
+            <option value="invest">📈 निवेश</option>
+          </select>
+        </div>
+        <div class="full">
+          <label>किसे / किस लिए (वैकल्पिक)</label>
+          <textarea id="fLabel" rows="4" placeholder="जैसे:&#10;1. Govind&#10;2. Shopping&#10;3. Ticket"></textarea>
+        </div>
+        <button type="submit" class="add-btn full" id="addBtn">जोड़ें (Add Entry)</button>
+        <button type="button" class="cancel-edit-btn full" id="cancelEditBtn" style="display:none">एडिट रद्द करें</button>
+      </form>
+    </section>
+
+    <section class="ledger">
+      <div class="ledger-title" id="ledgerTitleIncome">आय की एंट्रीज़</div>
+      <div id="rowsIncome"></div>
+      <div class="ledger-title" id="ledgerTitleExpense">खर्च की एंट्रीज़</div>
+      <div id="rowsExpense"></div>
+      <div class="ledger-title" id="ledgerTitleInvest">निवेश की एंट्रीज़</div>
+      <div id="rowsInvest"></div>
+    </section>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showFatalError(msg){
+  let el = document.getElementById('fatalError');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'fatalError';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#B5473A;color:#fff;padding:10px 14px;font-size:12px;z-index:9999;font-family:monospace;white-space:pre-wrap;';
+    document.body.prepend(el);
+  }
+  el.textContent = '⚠ Error: ' + msg + ' — is message ka screenshot lekar bhej dein';
+}
+window.addEventListener('error', function(e){ showFatalError(e.message + ' (line ' + e.lineno + ')'); });
+window.addEventListener('unhandledrejection', function(e){ showFatalError(String(e.reason)); });
+
+const TYPE_LABEL = {income:'आय', expense:'खर्च', invest:'निवेश'};
+const MONTH_NAMES_HI = ['जनवरी','फ़रवरी','मार्च','अप्रैल','मई','जून','जुलाई','अगस्त','सितंबर','अक्तूबर','नवंबर','दिसंबर'];
+
+let allTx = [];
+let openingOverrides = {};
+let activeType = 'income';
+let viewDate = new Date();
+let editingId = null;
+let screen = 'dashboard'; // 'dashboard' | 'month'
+const STORAGE_KEY = 'bahikhata-data';
+
+const $ = (id) => document.getElementById(id);
+function fmt(n){
+  const neg = n < -0.0005;
+  const v = Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:3, maximumFractionDigits:3});
+  return (neg ? '-' : '') + 'KD ' + v;
+}
+const monthKey = (d) => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+function monthLabelFromKey(key){
+  const [y,m] = key.split('-').map(Number);
+  return MONTH_NAMES_HI[m-1] + ' ' + y;
+}
+
+function toast(msg){
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+/* ---------- storage ---------- */
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      allTx = parsed.tx || [];
+      openingOverrides = parsed.openingOverrides || {};
+    } else {
+      allTx = [];
+      openingOverrides = {};
+    }
+  }catch(e){
+    allTx = [];
+    openingOverrides = {};
+  }
+  renderAll();
+}
+
+function saveData(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tx: allTx, openingOverrides }));
+  }catch(e){
+    toast('डेटा सेव नहीं हो पाया (storage भरा हो सकता है)');
+  }
+}
+
+/* ---------- data helpers ---------- */
+function txForMonth(d){
+  const key = monthKey(d);
+  return allTx.filter(t => t.monthKey === key);
+}
+
+function totalsFor(d){
+  const tx = txForMonth(d);
+  return {
+    income: tx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0),
+    expense: tx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0),
+    invest: tx.filter(t=>t.type==='invest').reduce((s,t)=>s+t.amount,0)
+  };
+}
+
+function allKnownMonthKeys(){
+  return [...new Set([
+    ...allTx.filter(t=>t.monthKey).map(t=>t.monthKey),
+    ...Object.keys(openingOverrides)
+  ])];
+}
+
+// Walks forward from the earliest known month, carrying each month's savings
+// into the next month's opening balance — like a real passbook.
+function balanceFor(targetDate){
+  const targetKey = monthKey(targetDate);
+  const knownKeys = allKnownMonthKeys();
+  const t = totalsFor(targetDate);
+  if(knownKeys.length === 0){
+    return { opening:0, closing: t.income - t.expense - t.invest, ...t };
+  }
+  const minKey = knownKeys.sort()[0];
+  if(targetKey < minKey){
+    return { opening:0, closing: t.income - t.expense - t.invest, ...t };
+  }
+  let cursor = new Date(minKey + '-01');
+  let opening = openingOverrides[minKey] !== undefined ? openingOverrides[minKey] : 0;
+  while(true){
+    const key = monthKey(cursor);
+    if(openingOverrides[key] !== undefined) opening = openingOverrides[key];
+    const ct = totalsFor(cursor);
+    const closing = opening + ct.income - ct.expense - ct.invest;
+    if(key === targetKey){
+      return { opening, closing, ...ct };
+    }
+    opening = closing;
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1);
+  }
+}
+
+/* ---------- screen switching ---------- */
+function goDashboard(){
+  screen = 'dashboard';
+  editingId = null;
+  $('dashboardScreen').style.display = '';
+  $('monthScreen').style.display = 'none';
+  $('breakdownScreen').style.display = 'none';
+  $('monthNav').style.display = 'none';
+  $('breakdownNav').style.display = 'none';
+  renderDashboard();
+}
+
+function goMonth(date){
+  screen = 'month';
+  viewDate = date;
+  editingId = null;
+  $('dashboardScreen').style.display = 'none';
+  $('monthScreen').style.display = '';
+  $('breakdownScreen').style.display = 'none';
+  $('monthNav').style.display = 'flex';
+  $('breakdownNav').style.display = 'none';
+  resetForm();
+  renderMonth();
+}
+
+let breakdownType = 'income';
+function goBreakdown(type){
+  screen = 'breakdown';
+  breakdownType = type;
+  $('dashboardScreen').style.display = 'none';
+  $('monthScreen').style.display = 'none';
+  $('breakdownScreen').style.display = '';
+  $('monthNav').style.display = 'none';
+  $('breakdownNav').style.display = 'flex';
+  $('breakdownTitle').textContent = 'कुल ' + TYPE_LABEL[type] + ' — महीना-वार';
+  renderBreakdown();
+}
+
+function renderBreakdown(){
+  const type = breakdownType;
+  const keys = allKnownMonthKeys().sort().reverse();
+  let total = 0;
+  const rows = [];
+  keys.forEach(key=>{
+    const [y,m] = key.split('-').map(Number);
+    const d = new Date(y, m-1, 1);
+    const amt = totalsFor(d)[type];
+    if(amt > 0){
+      total += amt;
+      rows.push({key, amt});
+    }
+  });
+  $('breakdownTotal').textContent = 'कुल: ' + fmt(total);
+  const listEl = $('breakdownList');
+  if(rows.length === 0){
+    listEl.innerHTML = `<div class="empty-dash">अभी कोई ${TYPE_LABEL[type]} एंट्री नहीं है।</div>`;
+    return;
+  }
+  listEl.innerHTML = rows.map(r=>{
+    return `<div class="month-row" data-key="${r.key}">
+      <div class="m-name">${monthLabelFromKey(r.key)}</div>
+      <div class="m-bal">${fmt(r.amt)}</div>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.month-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const [y,m] = row.dataset.key.split('-').map(Number);
+      goMonth(new Date(y, m-1, 1));
+    });
+  });
+}
+
+$('brandHome').addEventListener('click', goDashboard);
+$('backToDash').addEventListener('click', goDashboard);
+$('backToDash2').addEventListener('click', goDashboard);
+$('openCurrentMonth').addEventListener('click', ()=> goMonth(new Date()));
+$('cardIncome').addEventListener('click', ()=> goBreakdown('income'));
+$('cardExpense').addEventListener('click', ()=> goBreakdown('expense'));
+$('cardInvest').addEventListener('click', ()=> goBreakdown('invest'));
+
+/* ---------- dashboard render ---------- */
+function renderDashboard(){
+  const totalIncome = allTx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const totalExpense = allTx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const totalInvest = allTx.filter(t=>t.type==='invest').reduce((s,t)=>s+t.amount,0);
+  const currentBal = balanceFor(new Date()).closing;
+
+  $('dashIncome').textContent = fmt(totalIncome);
+  $('dashExpense').textContent = fmt(totalExpense);
+  $('dashInvest').textContent = fmt(totalInvest);
+  $('dashBalance').textContent = fmt(currentBal);
+  $('dashBalance').style.color = currentBal >= 0 ? 'var(--ink)' : 'var(--expense)';
+
+  const keys = allKnownMonthKeys().sort().reverse();
+  const listEl = $('monthsList');
+  if(keys.length === 0){
+    listEl.innerHTML = `<div class="empty-dash">अभी कोई महीना दर्ज नहीं है — ऊपर बटन से शुरू करें।</div>`;
+    return;
+  }
+  listEl.innerHTML = keys.map(key=>{
+    const [y,m] = key.split('-').map(Number);
+    const d = new Date(y, m-1, 1);
+    const bal = balanceFor(d);
+    const negClass = bal.closing < 0 ? 'neg' : '';
+    return `<div class="month-row" data-key="${key}">
+      <div class="m-name">${monthLabelFromKey(key)}</div>
+      <div class="m-bal ${negClass}">${fmt(bal.closing)}</div>
+    </div>`;
+  }).join('');
+  listEl.querySelectorAll('.month-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const [y,m] = row.dataset.key.split('-').map(Number);
+      goMonth(new Date(y, m-1, 1));
+    });
+  });
+}
+
+/* ---------- month screen render ---------- */
+function renderMonth(){
+  $('monthLabel').textContent = viewDate.toLocaleDateString('hi-IN', { month:'long', year:'numeric' });
+
+  const monthTx = txForMonth(viewDate);
+  const bal = balanceFor(viewDate);
+  const monthSavings = bal.income - bal.expense - bal.invest;
+
+  $('sumIncome').textContent = fmt(bal.income);
+  $('sumExpense').textContent = fmt(bal.expense);
+  $('sumInvest').textContent = fmt(bal.invest);
+  $('sumNet').textContent = fmt(monthSavings);
+  $('sumNet').style.color = monthSavings >= 0 ? 'var(--ink)' : 'var(--expense)';
+
+  $('carryOpen').textContent = fmt(bal.opening);
+  $('carryClose').textContent = fmt(bal.closing);
+  $('carryClose').style.color = bal.closing >= 0 ? 'var(--paper)' : '#E8A092';
+
+  resetEditArea();
+
+  renderGroup('income', 'rowsIncome', 'ledgerTitleIncome', 'आय की एंट्रीज़', monthTx);
+  renderGroup('expense', 'rowsExpense', 'ledgerTitleExpense', 'खर्च की एंट्रीज़', monthTx);
+  renderGroup('invest', 'rowsInvest', 'ledgerTitleInvest', 'निवेश की एंट्रीज़', monthTx);
+}
+
+function renderGroup(type, rowsId, titleId, titleText, monthTx){
+  const items = monthTx.filter(t => t.type === type);
+  $(titleId).innerHTML = `${titleText} <span class="count">${items.length ? '(' + items.length + ')' : ''}</span>`;
+  const rowsEl = $(rowsId);
+  if(items.length === 0){
+    rowsEl.innerHTML = `<div class="empty">इस महीने अभी कोई ${TYPE_LABEL[type]} एंट्री नहीं है।</div>`;
+    return;
+  }
+  const sign = type === 'income' ? '+' : '−';
+  rowsEl.innerHTML = items.map(t=>{
+    return `<div class="row ${t.type}">
+      <div class="bar"></div>
+      <div class="info">
+        <div class="cat">${t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type]}</div>
+      </div>
+      <div class="amt">${sign} ${fmt(t.amount)}</div>
+      <button class="edit" title="एडिट करें" onclick="editEntry('${t.id}')">✎</button>
+      <button class="del" title="हटाएं" onclick="deleteEntry('${t.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+/* ---------- add / edit form ---------- */
+$('fType').addEventListener('change', ()=>{ activeType = $('fType').value; });
+
+function setActiveTypeTab(type){
+  activeType = type;
+  $('fType').value = type;
+}
+
+function resetForm(){
+  editingId = null;
+  $('fAmount').value = '';
+  $('fLabel').value = '';
+  $('fType').value = 'income';
+  activeType = 'income';
+  $('addBtn').textContent = 'जोड़ें (Add Entry)';
+  $('editingTagWrap').style.display = 'none';
+  $('cancelEditBtn').style.display = 'none';
+}
+
+function editEntry(id){
+  const entry = allTx.find(t => t.id === id);
+  if(!entry) return;
+  editingId = id;
+  setActiveTypeTab(entry.type);
+  $('fAmount').value = entry.amount;
+  $('fLabel').value = entry.label || '';
+  $('addBtn').textContent = 'अपडेट करें (Update)';
+  $('editingTagWrap').style.display = '';
+  $('cancelEditBtn').style.display = '';
+  window.scrollTo({top: document.querySelector('.add-panel').offsetTop - 10, behavior:'smooth'});
+}
+
+$('cancelEditBtn').addEventListener('click', resetForm);
+
+$('addForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const btn = $('addBtn');
+  try{
+    const amount = parseFloat($('fAmount').value);
+    if(!amount || amount <= 0){ toast('कृपया सही राशि डालें'); return; }
+    btn.disabled = true;
+    const label = $('fLabel').value.trim();
+
+    if(editingId){
+      const entry = allTx.find(t => t.id === editingId);
+      if(entry){
+        entry.type = activeType;
+        entry.amount = amount;
+        entry.label = label;
+      }
+      toast('एंट्री अपडेट हुई');
+    } else {
+      allTx.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        type: activeType,
+        label: label,
+        amount: amount,
+        monthKey: monthKey(viewDate)
+      });
+      toast(TYPE_LABEL[activeType] + ' एंट्री जोड़ी गई');
+    }
+    saveData();
+    resetForm();
+    renderMonth();
+  }catch(err){
+    showFatalError(String(err));
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+function deleteEntry(id){
+  allTx = allTx.filter(t => t.id !== id);
+  if(editingId === id) resetForm();
+  saveData();
+  renderMonth();
+}
+
+/* ---------- month navigation ---------- */
+$('prevMonth').addEventListener('click', ()=>{
+  goMonth(new Date(viewDate.getFullYear(), viewDate.getMonth()-1, 1));
+});
+$('nextMonth').addEventListener('click', ()=>{
+  goMonth(new Date(viewDate.getFullYear(), viewDate.getMonth()+1, 1));
+});
+$('gotoToday').addEventListener('click', ()=>{
+  goMonth(new Date());
+});
+
+/* ---------- opening balance manual override ---------- */
+function resetEditArea(){
+  $('editArea').innerHTML = `<button class="carry-edit" id="editOpenBtn">✎ बदलें</button>`;
+  $('editOpenBtn').addEventListener('click', showOpenInput);
+}
+
+function showOpenInput(){
+  const key = monthKey(viewDate);
+  const current = openingOverrides[key] !== undefined ? openingOverrides[key] : balanceFor(viewDate).opening;
+  $('editArea').innerHTML = `
+    <div class="carry-input-row">
+      <input type="number" id="openInput" step="0.001" value="${current.toFixed(3)}">
+      <button type="button" class="save-b" id="openSave">सेव</button>
+      <button type="button" class="cancel-b" id="openCancel">रद्द</button>
+    </div>`;
+  $('openInput').focus();
+  $('openSave').addEventListener('click', ()=>{
+    const val = parseFloat($('openInput').value);
+    if(isNaN(val)){ toast('कृपया सही राशि डालें'); return; }
+    openingOverrides[key] = val;
+    saveData();
+    toast('शुरुआती बैलेंस अपडेट हुआ');
+    renderMonth();
+  });
+  $('openCancel').addEventListener('click', renderMonth);
+}
+
+/* ---------- render dispatcher ---------- */
+function renderAll(){
+  if(screen === 'dashboard') renderDashboard();
+  else renderMonth();
+}
+
+loadData();
+goDashboard();
+</script>
+</body>
+</html>

@@ -314,6 +314,10 @@
   .row.expense .bar{ background:var(--expense); }
   .row.invest .bar{ background:var(--invest); }
   .row .info .cat{ font-weight:600; font-size:14px; }
+  .row .info .mode-tag{
+    display:inline-block; margin-top:3px; font-size:10.5px; font-weight:600;
+    color:var(--gold); background:#FBF3DE; padding:1px 7px; border-radius:10px;
+  }
   .row .amt{ font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:15px; text-align:right; white-space:nowrap; }
   .row.income .amt{ color:var(--income); }
   .row.expense .amt{ color:var(--expense); }
@@ -376,7 +380,7 @@
       <div class="dash-card invest clickable" id="cardInvest">
         <div class="dash-label">कुल निवेश (सभी महीने)</div>
         <div class="dash-value" id="dashInvest">KD 0.000</div>
-        <div class="dash-sub">रिटर्न आने पर उसी महीने income में जोड़ें और यहां से entry edit/delete कर दें</div>
+        <div class="dash-sub">रिटर्न आने पर income में "निवेश वापसी" टिक करें — यहां से अपने आप घट जाएगा</div>
       </div>
       <div class="dash-card balance">
         <div class="dash-label">अभी का बैलेंस</div>
@@ -447,6 +451,12 @@
             <option value="expense">➖ खर्च</option>
             <option value="invest">📈 निवेश</option>
           </select>
+        </div>
+        <div class="full" id="returnCheckWrap" style="display:none">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; text-transform:none; letter-spacing:normal; font-size:13px; color:var(--ink);">
+            <input type="checkbox" id="fIsReturn" style="width:auto;">
+            यह किसी पुराने निवेश की वापसी है (Dashboard के कुल निवेश से घट जाएगा, कुल आय में नहीं जुड़ेगा)
+          </label>
         </div>
         <div class="full">
           <label>किसे / किस लिए (वैकल्पिक)</label>
@@ -674,9 +684,10 @@ $('cardInvest').addEventListener('click', ()=> goBreakdown('invest'));
 
 /* ---------- dashboard render ---------- */
 function renderDashboard(){
-  const totalIncome = allTx.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+  const returnsTotal = allTx.filter(t=>t.type==='income' && t.isReturn).reduce((s,t)=>s+t.amount,0);
+  const totalIncome = allTx.filter(t=>t.type==='income' && !t.isReturn).reduce((s,t)=>s+t.amount,0);
   const totalExpense = allTx.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const totalInvest = allTx.filter(t=>t.type==='invest').reduce((s,t)=>s+t.amount,0);
+  const totalInvest = allTx.filter(t=>t.type==='invest').reduce((s,t)=>s+t.amount,0) - returnsTotal;
   const currentBal = balanceFor(new Date()).closing;
 
   $('dashIncome').textContent = fmt(totalIncome);
@@ -748,6 +759,7 @@ function renderGroup(type, rowsId, titleId, titleText, monthTx){
       <div class="bar"></div>
       <div class="info">
         <div class="cat">${t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type]}</div>
+        ${t.isReturn ? `<span class="mode-tag">↩ निवेश वापसी</span>` : ''}
       </div>
       <div class="amt">${sign} ${fmt(t.amount)}</div>
       <button class="edit" title="एडिट करें" onclick="editEntry('${t.id}')">✎</button>
@@ -763,11 +775,17 @@ function escapeHtml(s){
 }
 
 /* ---------- add / edit form ---------- */
-$('fType').addEventListener('change', ()=>{ activeType = $('fType').value; });
+function updateReturnCheckVisibility(){
+  $('returnCheckWrap').style.display = (activeType === 'income') ? '' : 'none';
+  if(activeType !== 'income') $('fIsReturn').checked = false;
+}
+
+$('fType').addEventListener('change', ()=>{ activeType = $('fType').value; updateReturnCheckVisibility(); });
 
 function setActiveTypeTab(type){
   activeType = type;
   $('fType').value = type;
+  updateReturnCheckVisibility();
 }
 
 function resetForm(){
@@ -775,7 +793,9 @@ function resetForm(){
   $('fAmount').value = '';
   $('fLabel').value = '';
   $('fType').value = 'income';
+  $('fIsReturn').checked = false;
   activeType = 'income';
+  updateReturnCheckVisibility();
   $('addBtn').textContent = 'जोड़ें (Add Entry)';
   $('editingTagWrap').style.display = 'none';
   $('cancelEditBtn').style.display = 'none';
@@ -788,6 +808,7 @@ function editEntry(id){
   setActiveTypeTab(entry.type);
   $('fAmount').value = entry.amount;
   $('fLabel').value = entry.label || '';
+  $('fIsReturn').checked = !!entry.isReturn;
   $('addBtn').textContent = 'अपडेट करें (Update)';
   $('editingTagWrap').style.display = '';
   $('cancelEditBtn').style.display = '';
@@ -804,6 +825,7 @@ $('addForm').addEventListener('submit', (e)=>{
     if(!amount || amount <= 0){ toast('कृपया सही राशि डालें'); return; }
     btn.disabled = true;
     const label = $('fLabel').value.trim();
+    const isReturn = activeType === 'income' && $('fIsReturn').checked;
 
     if(editingId){
       const entry = allTx.find(t => t.id === editingId);
@@ -811,6 +833,7 @@ $('addForm').addEventListener('submit', (e)=>{
         entry.type = activeType;
         entry.amount = amount;
         entry.label = label;
+        entry.isReturn = isReturn;
       }
       toast('एंट्री अपडेट हुई');
     } else {
@@ -819,6 +842,7 @@ $('addForm').addEventListener('submit', (e)=>{
         type: activeType,
         label: label,
         amount: amount,
+        isReturn: isReturn,
         monthKey: monthKey(viewDate)
       });
       toast(TYPE_LABEL[activeType] + ' एंट्री जोड़ी गई');

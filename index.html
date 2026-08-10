@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="hi" translate="no">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,10 +8,13 @@
 <meta name="apple-mobile-web-app-title" content="बहीखाता">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#1B2A4A">
+<meta name="google" content="notranslate">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>मेरा बहीखाता — मासिक हिसाब</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -156,6 +159,25 @@
     font-family:'Inter',sans-serif;
   }
   .open-month-btn:hover{ background:#28395e; }
+  .backup-row{ display:flex; gap:10px; margin-top:10px; }
+  .backup-btn{
+    flex:1; padding:11px; border:1px solid #D8D0BE; border-radius:8px;
+    background:var(--card); color:var(--ink-soft);
+    font-weight:600; font-size:12.5px; cursor:pointer; font-family:'Inter',sans-serif;
+  }
+  .backup-btn:hover{ background:#f5f2e9; color:var(--ink); }
+  .sync-status{ text-align:center; font-size:11.5px; color:var(--ink-soft); margin-top:14px; cursor:pointer; }
+  .sync-status b{ color:var(--gold); font-family:'IBM Plex Mono',monospace; }
+
+  .sync-wrap{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .sync-card{
+    background:var(--card); border-radius:14px; padding:28px 24px; max-width:380px; width:100%;
+    box-shadow:var(--shadow); text-align:center;
+  }
+  .sync-desc{ font-size:13.5px; color:var(--ink-soft); margin:14px 0 20px; line-height:1.5; }
+  .sync-or{ font-size:12px; color:var(--ink-soft); margin:18px 0 10px; }
 
   .months-title{
     font-family:'Fraunces', serif;
@@ -349,7 +371,20 @@
 </head>
 <body>
 
-<header>
+<section id="syncSetupScreen" style="display:none;">
+  <div class="sync-wrap">
+    <div class="sync-card">
+      <div class="brand" style="color:var(--ink); justify-content:center;">मेरा बहीखाता <small>Personal Ledger</small></div>
+      <p class="sync-desc">यह डेटा अब Firebase पर सुरक्षित रहेगा, ताकि आप किसी भी डिवाइस से जुड़ सकें।</p>
+      <button class="open-month-btn" id="createCodeBtn">🆕 नया Sync Code बनाएं</button>
+      <div class="sync-or">— या पुराना कोड डालकर जुड़ें —</div>
+      <input type="text" id="joinCodeInput" placeholder="जैसे: AB12CD34" style="text-transform:uppercase; text-align:center; font-family:'IBM Plex Mono',monospace;">
+      <button class="open-month-btn" id="joinCodeBtn" style="margin-top:10px;">🔗 जोड़ें</button>
+    </div>
+  </div>
+</section>
+
+<header style="display:none">
   <div class="brand" id="brandHome">मेरा बहीखाता <small>Personal Ledger</small></div>
   <div class="month-nav" id="monthNav" style="display:none">
     <button class="icon-btn" id="backToDash" title="Dashboard">🏠</button>
@@ -364,7 +399,7 @@
   </div>
 </header>
 
-<main>
+<main style="display:none">
 
   <!-- ===== DASHBOARD SCREEN ===== -->
   <section id="dashboardScreen">
@@ -389,6 +424,13 @@
     </div>
 
     <button class="open-month-btn" id="openCurrentMonth">+ इस महीने की एंट्री खोलें / जोड़ें</button>
+
+    <div class="backup-row">
+      <button class="backup-btn" id="exportBtn">⬇ Backup लें (Export)</button>
+      <button class="backup-btn" id="importBtn">⬆ Backup वापस डालें (Import)</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none">
+    </div>
+    <div class="sync-status" id="syncStatus">Sync Code: <b>—</b> (टैप करके बदलें)</div>
 
     <div class="months-title">सभी महीने</div>
     <div id="monthsList"></div>
@@ -504,7 +546,23 @@ let activeType = 'income';
 let viewDate = new Date();
 let editingId = null;
 let screen = 'dashboard'; // 'dashboard' | 'month'
-const STORAGE_KEY = 'bahikhata-data';
+const SYNC_KEY = 'bahikhata-sync-code';
+let syncCode = localStorage.getItem(SYNC_KEY);
+const LEDGER_ROOT = 'bahikhata_ledger'; // top-level collection for this app's data
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCDWIVpJ27NtjTIMi3WAhc3Oasw8t_UKQQ",
+  authDomain: "bahikhata-7c315.firebaseapp.com",
+  projectId: "bahikhata-7c315",
+  storageBucket: "bahikhata-7c315.firebasestorage.app",
+  messagingSenderId: "945603198629",
+  appId: "1:945603198629:web:29e8917d785f959c8e174c"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+try{ db.enablePersistence({ synchronizeTabs: true }); }catch(e){ /* offline cache not available */ }
+
+let unsubEntries = null, unsubMeta = null;
 
 const $ = (id) => document.getElementById(id);
 function fmt(n){
@@ -525,32 +583,66 @@ function toast(msg){
   setTimeout(()=>t.classList.remove('show'), 1800);
 }
 
-/* ---------- storage ---------- */
-function loadData(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw){
-      const parsed = JSON.parse(raw);
-      allTx = parsed.tx || [];
-      openingOverrides = parsed.openingOverrides || {};
-    } else {
-      allTx = [];
-      openingOverrides = {};
-    }
-  }catch(e){
-    allTx = [];
-    openingOverrides = {};
-  }
-  renderAll();
+/* ---------- Firebase sync ---------- */
+function generateSyncCode(){
+  return (Math.random().toString(36).slice(2,6) + Math.random().toString(36).slice(2,6)).toUpperCase();
 }
 
-function saveData(){
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ tx: allTx, openingOverrides }));
-  }catch(e){
-    toast('डेटा सेव नहीं हो पाया (storage भरा हो सकता है)');
-  }
+function ledgerDoc(){ return db.collection(LEDGER_ROOT).doc(syncCode); }
+function entriesCol(){ return ledgerDoc().collection('entries'); }
+
+function startSync(){
+  $('syncStatus').innerHTML = 'Sync Code: <b>' + syncCode + '</b> (टैप करके बदलें)';
+  unsubMeta = ledgerDoc().onSnapshot(snap=>{
+    openingOverrides = (snap.exists && snap.data().openingOverrides) || {};
+    renderAll();
+  }, err=> showFatalError('Sync (meta) error: ' + err.message));
+  unsubEntries = entriesCol().onSnapshot(snap=>{
+    allTx = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderAll();
+  }, err=> showFatalError('Sync (entries) error: ' + err.message));
 }
+
+function stopSync(){
+  if(unsubEntries) unsubEntries();
+  if(unsubMeta) unsubMeta();
+  unsubEntries = null; unsubMeta = null;
+}
+
+function showSyncSetup(){
+  document.querySelector('header').style.display = 'none';
+  document.querySelector('main').style.display = 'none';
+  $('syncSetupScreen').style.display = '';
+}
+
+function completeSyncSetup(code){
+  syncCode = code;
+  localStorage.setItem(SYNC_KEY, code);
+  document.querySelector('header').style.display = '';
+  document.querySelector('main').style.display = '';
+  $('syncSetupScreen').style.display = 'none';
+  startSync();
+  goDashboard();
+}
+
+$('createCodeBtn').addEventListener('click', ()=>{
+  const code = generateSyncCode();
+  completeSyncSetup(code);
+  toast('नया कोड बना: ' + code + ' — इसे कहीं नोट कर लें');
+});
+$('joinCodeBtn').addEventListener('click', ()=>{
+  const code = $('joinCodeInput').value.trim().toUpperCase();
+  if(!code){ toast('कृपया कोड डालें'); return; }
+  completeSyncSetup(code);
+});
+$('syncStatus').addEventListener('click', ()=>{
+  if(confirm('क्या आप Sync Code बदलना चाहते हैं? (यह डिवाइस अभी वाले खाते से अलग हो जाएगा)')){
+    stopSync();
+    localStorage.removeItem(SYNC_KEY);
+    syncCode = null;
+    showSyncSetup();
+  }
+});
 
 /* ---------- data helpers ---------- */
 function txForMonth(d){
@@ -678,6 +770,57 @@ $('brandHome').addEventListener('click', goDashboard);
 $('backToDash').addEventListener('click', goDashboard);
 $('backToDash2').addEventListener('click', goDashboard);
 $('openCurrentMonth').addEventListener('click', ()=> goMonth(new Date()));
+
+/* ---------- backup: export / import ---------- */
+$('exportBtn').addEventListener('click', ()=>{
+  try{
+    const payload = JSON.stringify({ tx: allTx, openingOverrides }, null, 2);
+    const blob = new Blob([payload], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `bahikhata-backup-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    toast('Backup फ़ाइल डाउनलोड हो रही है');
+  }catch(err){
+    showFatalError(String(err));
+  }
+});
+
+$('importBtn').addEventListener('click', ()=> $('importFile').click());
+
+$('importFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      if(!parsed || !Array.isArray(parsed.tx)){ toast('यह सही backup फ़ाइल नहीं लगती'); return; }
+      const batch = db.batch();
+      const col = entriesCol();
+      parsed.tx.forEach(t=>{
+        const id = t.id || (Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+        batch.set(col.doc(id), {
+          type: t.type, label: t.label || '', amount: t.amount,
+          isReturn: !!t.isReturn, monthKey: t.monthKey
+        });
+      });
+      batch.set(ledgerDoc(), { openingOverrides: parsed.openingOverrides || {} }, { merge:true });
+      batch.commit()
+        .then(()=>{ toast('Backup वापस डल गया ✓'); renderDashboard(); })
+        .catch(err=>{ toast('Import fail, internet check karein'); });
+    }catch(err){
+      toast('फ़ाइल पढ़ने में गड़बड़ी हुई');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
 $('cardIncome').addEventListener('click', ()=> goBreakdown('income'));
 $('cardExpense').addEventListener('click', ()=> goBreakdown('expense'));
 $('cardInvest').addEventListener('click', ()=> goBreakdown('invest'));
@@ -820,48 +963,36 @@ $('cancelEditBtn').addEventListener('click', resetForm);
 $('addForm').addEventListener('submit', (e)=>{
   e.preventDefault();
   const btn = $('addBtn');
-  try{
-    const amount = parseFloat($('fAmount').value);
-    if(!amount || amount <= 0){ toast('कृपया सही राशि डालें'); return; }
-    btn.disabled = true;
-    const label = $('fLabel').value.trim();
-    const isReturn = activeType === 'income' && $('fIsReturn').checked;
+  const amount = parseFloat($('fAmount').value);
+  if(!amount || amount <= 0){ toast('कृपया सही राशि डालें'); return; }
+  btn.disabled = true;
+  const label = $('fLabel').value.trim();
+  const isReturn = activeType === 'income' && $('fIsReturn').checked;
+  const entryData = { type: activeType, label, amount, isReturn, monthKey: monthKey(viewDate) };
 
-    if(editingId){
-      const entry = allTx.find(t => t.id === editingId);
-      if(entry){
-        entry.type = activeType;
-        entry.amount = amount;
-        entry.label = label;
-        entry.isReturn = isReturn;
-      }
-      toast('एंट्री अपडेट हुई');
-    } else {
-      allTx.push({
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-        type: activeType,
-        label: label,
-        amount: amount,
-        isReturn: isReturn,
-        monthKey: monthKey(viewDate)
-      });
-      toast(TYPE_LABEL[activeType] + ' एंट्री जोड़ी गई');
-    }
-    saveData();
-    resetForm();
-    renderMonth();
-  }catch(err){
-    showFatalError(String(err));
-  }finally{
-    btn.disabled = false;
-  }
+  const id = editingId || (Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+  entriesCol().doc(id).set(entryData)
+    .then(()=>{
+      toast(editingId ? 'एंट्री अपडेट हुई' : (TYPE_LABEL[activeType] + ' एंट्री जोड़ी गई'));
+      resetForm();
+      renderMonth();
+    })
+    .catch(err=>{
+      toast('Save nahi hua, internet check karein');
+      showFatalError(err.message);
+    })
+    .finally(()=>{ btn.disabled = false; });
 });
 
 function deleteEntry(id){
-  allTx = allTx.filter(t => t.id !== id);
-  if(editingId === id) resetForm();
-  saveData();
-  renderMonth();
+  entriesCol().doc(id).delete()
+    .then(()=>{
+      if(editingId === id) resetForm();
+      renderMonth();
+    })
+    .catch(err=>{
+      toast('Delete nahi hua, internet check karein');
+    });
 }
 
 /* ---------- month navigation ---------- */
@@ -894,10 +1025,15 @@ function showOpenInput(){
   $('openSave').addEventListener('click', ()=>{
     const val = parseFloat($('openInput').value);
     if(isNaN(val)){ toast('कृपया सही राशि डालें'); return; }
-    openingOverrides[key] = val;
-    saveData();
-    toast('शुरुआती बैलेंस अपडेट हुआ');
-    renderMonth();
+    const updated = { ...openingOverrides, [key]: val };
+    ledgerDoc().set({ openingOverrides: updated }, { merge: true })
+      .then(()=>{
+        toast('शुरुआती बैलेंस अपडेट हुआ');
+        renderMonth();
+      })
+      .catch(err=>{
+        toast('Save nahi hua, internet check karein');
+      });
   });
   $('openCancel').addEventListener('click', renderMonth);
 }
@@ -908,8 +1044,14 @@ function renderAll(){
   else renderMonth();
 }
 
-loadData();
-goDashboard();
+if(syncCode){
+  document.querySelector('header').style.display = '';
+  document.querySelector('main').style.display = '';
+  startSync();
+  goDashboard();
+} else {
+  showSyncSetup();
+}
 </script>
 </body>
 </html>

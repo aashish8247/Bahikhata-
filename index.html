@@ -120,7 +120,7 @@
 
   /* ===== Dashboard ===== */
   .dash-totals{
-    margin-top:-18px;
+    margin-top:20px;
     display:grid;
     grid-template-columns:repeat(2,1fr);
     gap:12px;
@@ -204,7 +204,7 @@
 
   /* ===== Summary strip (month screen) ===== */
   .summary{
-    margin-top:-18px;
+    margin-top:20px;
     display:grid;
     grid-template-columns:repeat(4,1fr);
     gap:12px;
@@ -376,10 +376,11 @@
     <div class="sync-card">
       <div class="brand" style="color:var(--ink); justify-content:center;">मेरा बहीखाता <small>Personal Ledger</small></div>
       <p class="sync-desc">यह डेटा अब Firebase पर सुरक्षित रहेगा, ताकि आप किसी भी डिवाइस से जुड़ सकें।</p>
-      <button class="open-month-btn" id="createCodeBtn">🆕 नया Sync Code बनाएं</button>
-      <div class="sync-or">— या पुराना कोड डालकर जुड़ें —</div>
-      <input type="text" id="joinCodeInput" placeholder="जैसे: AB12CD34" style="text-transform:uppercase; text-align:center; font-family:'IBM Plex Mono',monospace;">
-      <button class="open-month-btn" id="joinCodeBtn" style="margin-top:10px;">🔗 जोड़ें</button>
+      <label style="text-align:left; display:block;">अपनी पसंद का Sync Code डालें (जो याद रहे)</label>
+      <input type="text" id="joinCodeInput" placeholder="जैसे: ASHU2024" style="text-transform:uppercase; text-align:center; font-family:'IBM Plex Mono',monospace;">
+      <button class="open-month-btn" id="joinCodeBtn" style="margin-top:12px;">🔗 शुरू करें / जुड़ें</button>
+      <div class="sync-or">कोई कोड सोचना नहीं है? इसकी जगह —</div>
+      <button class="open-month-btn" id="createCodeBtn" style="background:transparent; color:var(--ink); border:1px solid #D8D0BE;">🆕 अपने आप रैंडम कोड बनाएं</button>
     </div>
   </div>
 </section>
@@ -631,8 +632,8 @@ $('createCodeBtn').addEventListener('click', ()=>{
   toast('नया कोड बना: ' + code + ' — इसे कहीं नोट कर लें');
 });
 $('joinCodeBtn').addEventListener('click', ()=>{
-  const code = $('joinCodeInput').value.trim().toUpperCase();
-  if(!code){ toast('कृपया कोड डालें'); return; }
+  const code = $('joinCodeInput').value.trim().toUpperCase().replace(/[^A-Z0-9_\-]/g,'');
+  if(!code){ toast('कृपया कोड डालें (सिर्फ़ अक्षर/अंक)'); return; }
   completeSyncSetup(code);
 });
 $('syncStatus').addEventListener('click', ()=>{

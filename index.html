@@ -197,6 +197,14 @@
   .month-row .m-name{ font-weight:600; font-size:14.5px; }
   .month-row .m-bal{ font-family:'IBM Plex Mono', monospace; font-size:14px; color:var(--ink-soft); }
   .month-row .m-bal.neg{ color:var(--expense); }
+  .breakdown-row .b-left{ flex:1; min-width:0; }
+  .breakdown-row .m-name{ font-size:14px; line-height:1.4; }
+  .breakdown-row .b-month{ font-size:11px; color:var(--ink-soft); margin-top:2px; }
+  .breakdown-row .mode-tag{
+    display:inline-block; margin-top:5px; font-size:10.5px; font-weight:600;
+    color:var(--ink-soft); background:#EFE9DA; padding:1px 7px; border-radius:10px;
+  }
+  .breakdown-row .m-bal{ margin-left:10px; white-space:nowrap; }
   .empty-dash{
     text-align:center; padding:30px 20px; color:var(--ink-soft);
     font-family:'Fraunces',serif; font-size:14.5px;
@@ -500,6 +508,12 @@
             <input type="checkbox" id="fIsReturn" style="width:auto;">
             यह किसी पुराने निवेश की वापसी है (Dashboard के कुल निवेश से घट जाएगा, कुल आय में नहीं जुड़ेगा)
           </label>
+          <div id="returnOfWrap" style="display:none; margin-top:10px;">
+            <label>किस निवेश का रिटर्न है? (वैकल्पिक, पर लिंक रहेगा)</label>
+            <select id="fReturnOf">
+              <option value="">— कोई नहीं चुना —</option>
+            </select>
+          </div>
         </div>
         <div class="full">
           <label>किसे / किस लिए (वैकल्पिक)</label>
@@ -729,39 +743,58 @@ function goBreakdown(type){
   $('breakdownScreen').style.display = '';
   $('monthNav').style.display = 'none';
   $('breakdownNav').style.display = 'flex';
-  $('breakdownTitle').textContent = 'कुल ' + TYPE_LABEL[type] + ' — महीना-वार';
+  $('breakdownTitle').textContent = 'कुल ' + TYPE_LABEL[type] + ' — पूरी लिस्ट';
   renderBreakdown();
 }
 
 function renderBreakdown(){
   const type = breakdownType;
-  const keys = allKnownMonthKeys().sort().reverse();
-  let total = 0;
-  const rows = [];
-  keys.forEach(key=>{
-    const [y,m] = key.split('-').map(Number);
-    const d = new Date(y, m-1, 1);
-    const amt = totalsFor(d)[type];
-    if(amt > 0){
-      total += amt;
-      rows.push({key, amt});
-    }
-  });
-  $('breakdownTotal').textContent = 'कुल: ' + fmt(total);
+  const items = allTx.filter(t => t.type === type)
+    .sort((a,b)=> (b.monthKey||'').localeCompare(a.monthKey||''));
+
+  const rawTotal = items.reduce((s,t)=>s+t.amount,0);
+  let totalLine = 'कुल: ' + fmt(rawTotal);
+  if(type === 'invest'){
+    const returnsTotal = allTx.filter(t=>t.type==='income' && t.isReturn).reduce((s,t)=>s+t.amount,0);
+    totalLine = 'कुल निवेश किया: ' + fmt(rawTotal) + '  •  लौटा: ' + fmt(returnsTotal) + '  •  जारी (Live): ' + fmt(rawTotal - returnsTotal);
+  }
+  $('breakdownTotal').textContent = totalLine;
+
   const listEl = $('breakdownList');
-  if(rows.length === 0){
+  if(items.length === 0){
     listEl.innerHTML = `<div class="empty-dash">अभी कोई ${TYPE_LABEL[type]} एंट्री नहीं है।</div>`;
     return;
   }
-  listEl.innerHTML = rows.map(r=>{
-    return `<div class="month-row" data-key="${r.key}">
-      <div class="m-name">${monthLabelFromKey(r.key)}</div>
-      <div class="m-bal">${fmt(r.amt)}</div>
+
+  listEl.innerHTML = items.map(t=>{
+    const lbl = t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type];
+    let statusTag = '';
+    if(type === 'invest'){
+      const returned = allTx.find(r => r.type==='income' && r.isReturn && r.returnOf === t.id);
+      statusTag = returned
+        ? `<span class="mode-tag" style="color:var(--income); background:var(--income-bg);">✓ वापस आया — ${fmt(returned.amount)} (${monthLabelFromKey(returned.monthKey)})</span>`
+        : `<span class="mode-tag">● जारी (Live)</span>`;
+    }
+    if(type === 'income' && t.isReturn){
+      const inv = t.returnOf ? allTx.find(i => i.id === t.returnOf) : null;
+      statusTag = inv
+        ? `<span class="mode-tag" style="color:var(--gold);">↩ निवेश वापसी — ${escapeHtml((inv.label||'निवेश').split('\n')[0])}</span>`
+        : `<span class="mode-tag" style="color:var(--gold);">↩ निवेश वापसी</span>`;
+    }
+    return `<div class="month-row breakdown-row">
+      <div class="b-left">
+        <div class="m-name">${lbl}</div>
+        <div class="b-month">${monthLabelFromKey(t.monthKey)}</div>
+        ${statusTag}
+      </div>
+      <div class="m-bal">${fmt(t.amount)}</div>
     </div>`;
   }).join('');
-  listEl.querySelectorAll('.month-row').forEach(row=>{
+
+  listEl.querySelectorAll('.breakdown-row').forEach((row, i)=>{
     row.addEventListener('click', ()=>{
-      const [y,m] = row.dataset.key.split('-').map(Number);
+      const t = items[i];
+      const [y,m] = t.monthKey.split('-').map(Number);
       goMonth(new Date(y, m-1, 1));
     });
   });
@@ -919,11 +952,41 @@ function escapeHtml(s){
 }
 
 /* ---------- add / edit form ---------- */
+function liveInvestmentEntries(excludeReturnId){
+  // investments that don't already have a different return linked to them
+  const linkedIds = new Set(
+    allTx.filter(t => t.type==='income' && t.isReturn && t.returnOf && t.id !== excludeReturnId)
+         .map(t => t.returnOf)
+  );
+  return allTx.filter(t => t.type === 'invest' && !linkedIds.has(t.id))
+              .sort((a,b)=> (b.monthKey||'').localeCompare(a.monthKey||''));
+}
+
+function populateReturnOfOptions(){
+  const sel = $('fReturnOf');
+  const current = sel.value;
+  const items = liveInvestmentEntries(editingId);
+  sel.innerHTML = '<option value="">— कोई नहीं चुना —</option>' + items.map(t=>{
+    const lbl = (t.label ? t.label.split('\n')[0] : 'निवेश');
+    return `<option value="${t.id}">${escapeHtml(lbl)} — ${fmt(t.amount)} (${monthLabelFromKey(t.monthKey)})</option>`;
+  }).join('');
+  if(items.some(t=>t.id===current)) sel.value = current;
+}
+
 function updateReturnCheckVisibility(){
   $('returnCheckWrap').style.display = (activeType === 'income') ? '' : 'none';
   if(activeType !== 'income') $('fIsReturn').checked = false;
+  updateReturnOfVisibility();
 }
 
+function updateReturnOfVisibility(){
+  const show = activeType === 'income' && $('fIsReturn').checked;
+  $('returnOfWrap').style.display = show ? '' : 'none';
+  if(show) populateReturnOfOptions();
+  else $('fReturnOf').value = '';
+}
+
+$('fIsReturn').addEventListener('change', updateReturnOfVisibility);
 $('fType').addEventListener('change', ()=>{ activeType = $('fType').value; updateReturnCheckVisibility(); });
 
 function setActiveTypeTab(type){
@@ -938,6 +1001,7 @@ function resetForm(){
   $('fLabel').value = '';
   $('fType').value = 'income';
   $('fIsReturn').checked = false;
+  $('fReturnOf').value = '';
   activeType = 'income';
   updateReturnCheckVisibility();
   $('addBtn').textContent = 'जोड़ें (Add Entry)';
@@ -953,6 +1017,8 @@ function editEntry(id){
   $('fAmount').value = entry.amount;
   $('fLabel').value = entry.label || '';
   $('fIsReturn').checked = !!entry.isReturn;
+  updateReturnOfVisibility();
+  $('fReturnOf').value = entry.returnOf || '';
   $('addBtn').textContent = 'अपडेट करें (Update)';
   $('editingTagWrap').style.display = '';
   $('cancelEditBtn').style.display = '';
@@ -969,7 +1035,8 @@ $('addForm').addEventListener('submit', (e)=>{
   btn.disabled = true;
   const label = $('fLabel').value.trim();
   const isReturn = activeType === 'income' && $('fIsReturn').checked;
-  const entryData = { type: activeType, label, amount, isReturn, monthKey: monthKey(viewDate) };
+  const returnOf = isReturn ? ($('fReturnOf').value || null) : null;
+  const entryData = { type: activeType, label, amount, isReturn, returnOf, monthKey: monthKey(viewDate) };
 
   const id = editingId || (Date.now().toString(36) + Math.random().toString(36).slice(2,6));
   entriesCol().doc(id).set(entryData)

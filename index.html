@@ -770,10 +770,15 @@ function renderBreakdown(){
     const lbl = t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type];
     let statusTag = '';
     if(type === 'invest'){
-      const returned = allTx.find(r => r.type==='income' && r.isReturn && r.returnOf === t.id);
-      statusTag = returned
-        ? `<span class="mode-tag" style="color:var(--income); background:var(--income-bg);">✓ वापस आया — ${fmt(returned.amount)} (${monthLabelFromKey(returned.monthKey)})</span>`
-        : `<span class="mode-tag">● जारी (Live)</span>`;
+      const returned = investmentReturnedAmount(t.id, null);
+      const remaining = t.amount - returned;
+      if(returned <= 0.0005){
+        statusTag = `<span class="mode-tag">● जारी (Live) — कुछ वापस नहीं आया</span>`;
+      } else if(remaining <= 0.0005){
+        statusTag = `<span class="mode-tag" style="color:var(--income); background:var(--income-bg);">✓ पूरा वापस आया — ${fmt(returned)}</span>`;
+      } else {
+        statusTag = `<span class="mode-tag" style="color:var(--gold); background:#FBF3DE;">◐ आंशिक — ${fmt(returned)} वापस आया, ${fmt(remaining)} अभी Live</span>`;
+      }
     }
     if(type === 'income' && t.isReturn){
       const inv = t.returnOf ? allTx.find(i => i.id === t.returnOf) : null;
@@ -932,15 +937,29 @@ function renderGroup(type, rowsId, titleId, titleText, monthTx){
   }
   const sign = type === 'income' ? '+' : '−';
   rowsEl.innerHTML = items.map(t=>{
-    return `<div class="row ${t.type}">
+    let tag = '';
+    if(t.isReturn){
+      tag = `<span class="mode-tag">↩ निवेश वापसी${t.returnOf ? ' (लिंक हुआ)' : ' — लिंक करने के लिए टैप करें'}</span>`;
+    } else if(t.type === 'invest'){
+      const returned = investmentReturnedAmount(t.id, null);
+      const remaining = t.amount - returned;
+      if(returned <= 0.0005){
+        tag = `<span class="mode-tag">● Live</span>`;
+      } else if(remaining <= 0.0005){
+        tag = `<span class="mode-tag" style="color:var(--income); background:var(--income-bg);">✓ पूरा वापस आया</span>`;
+      } else {
+        tag = `<span class="mode-tag" style="color:var(--gold); background:#FBF3DE;">◐ ${fmt(remaining)} Live बचा</span>`;
+      }
+    }
+    return `<div class="row ${t.type}" onclick="editEntry('${t.id}')" style="cursor:pointer;">
       <div class="bar"></div>
       <div class="info">
         <div class="cat">${t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type]}</div>
-        ${t.isReturn ? `<span class="mode-tag">↩ निवेश वापसी</span>` : ''}
+        ${tag}
       </div>
       <div class="amt">${sign} ${fmt(t.amount)}</div>
-      <button class="edit" title="एडिट करें" onclick="editEntry('${t.id}')">✎</button>
-      <button class="del" title="हटाएं" onclick="deleteEntry('${t.id}')">✕</button>
+      <button class="edit" title="एडिट करें" onclick="event.stopPropagation(); editEntry('${t.id}')">✎</button>
+      <button class="del" title="हटाएं" onclick="event.stopPropagation(); deleteEntry('${t.id}')">✕</button>
     </div>`;
   }).join('');
 }
@@ -952,14 +971,20 @@ function escapeHtml(s){
 }
 
 /* ---------- add / edit form ---------- */
+function investmentReturnedAmount(investId, excludeReturnId){
+  return allTx.filter(t => t.type==='income' && t.isReturn && t.returnOf===investId && t.id !== excludeReturnId)
+              .reduce((s,t)=>s+t.amount,0);
+}
+
 function liveInvestmentEntries(excludeReturnId){
-  // investments that don't already have a different return linked to them
-  const linkedIds = new Set(
-    allTx.filter(t => t.type==='income' && t.isReturn && t.returnOf && t.id !== excludeReturnId)
-         .map(t => t.returnOf)
-  );
-  return allTx.filter(t => t.type === 'invest' && !linkedIds.has(t.id))
-              .sort((a,b)=> (b.monthKey||'').localeCompare(a.monthKey||''));
+  // investments that still have some un-returned (live) amount left
+  return allTx.filter(t => t.type === 'invest')
+    .map(t => {
+      const returned = investmentReturnedAmount(t.id, excludeReturnId);
+      return { ...t, returned, remaining: t.amount - returned };
+    })
+    .filter(t => t.remaining > 0.0005)
+    .sort((a,b)=> (b.monthKey||'').localeCompare(a.monthKey||''));
 }
 
 function populateReturnOfOptions(){
@@ -968,7 +993,8 @@ function populateReturnOfOptions(){
   const items = liveInvestmentEntries(editingId);
   sel.innerHTML = '<option value="">— कोई नहीं चुना —</option>' + items.map(t=>{
     const lbl = (t.label ? t.label.split('\n')[0] : 'निवेश');
-    return `<option value="${t.id}">${escapeHtml(lbl)} — ${fmt(t.amount)} (${monthLabelFromKey(t.monthKey)})</option>`;
+    const partialNote = t.returned > 0.0005 ? `, ${fmt(t.returned)} पहले ही वापस आ चुका` : '';
+    return `<option value="${t.id}">${escapeHtml(lbl)} — बचा ${fmt(t.remaining)} (कुल ${fmt(t.amount)}${partialNote}, ${monthLabelFromKey(t.monthKey)})</option>`;
   }).join('');
   if(items.some(t=>t.id===current)) sel.value = current;
 }

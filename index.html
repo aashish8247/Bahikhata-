@@ -747,62 +747,102 @@ function goBreakdown(type){
   renderBreakdown();
 }
 
+function investRowHtml(t){
+  const lbl = t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type];
+  const returned = investmentReturnedAmount(t.id, null);
+  const remaining = t.amount - returned;
+  let statusTag;
+  if(returned <= 0.0005){
+    statusTag = `<span class="mode-tag">● जारी (Live) — कुछ वापस नहीं आया</span>`;
+  } else if(remaining <= 0.0005){
+    statusTag = `<span class="mode-tag" style="color:var(--income); background:var(--income-bg);">✓ पूरा वापस आया — ${fmt(returned)}</span>`;
+  } else {
+    statusTag = `<span class="mode-tag" style="color:var(--gold); background:#FBF3DE;">◐ आंशिक — ${fmt(returned)} वापस आया, ${fmt(remaining)} अभी Live</span>`;
+  }
+  return `<div class="month-row breakdown-row" data-id="${t.id}" data-month="${t.monthKey}">
+    <div class="b-left">
+      <div class="m-name">${lbl}</div>
+      <div class="b-month">${monthLabelFromKey(t.monthKey)}</div>
+      ${statusTag}
+    </div>
+    <div class="m-bal">${fmt(t.amount)}</div>
+  </div>`;
+}
+
+function incomeReturnRowHtml(t){
+  const lbl = t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type];
+  const inv = t.returnOf ? allTx.find(i => i.id === t.returnOf) : null;
+  const statusTag = inv
+    ? `<span class="mode-tag" style="color:var(--gold);">↩ निवेश वापसी — ${escapeHtml((inv.label||'निवेश').split('\n')[0])}</span>`
+    : `<span class="mode-tag" style="color:var(--gold);">↩ निवेश वापसी</span>`;
+  return `<div class="month-row breakdown-row" data-id="${t.id}" data-month="${t.monthKey}">
+    <div class="b-left">
+      <div class="m-name">${lbl}</div>
+      <div class="b-month">${monthLabelFromKey(t.monthKey)}</div>
+      ${statusTag}
+    </div>
+    <div class="m-bal">${fmt(t.amount)}</div>
+  </div>`;
+}
+
+function plainRowHtml(t){
+  const lbl = t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type];
+  return `<div class="month-row breakdown-row" data-id="${t.id}" data-month="${t.monthKey}">
+    <div class="b-left">
+      <div class="m-name">${lbl}</div>
+      <div class="b-month">${monthLabelFromKey(t.monthKey)}</div>
+    </div>
+    <div class="m-bal">${fmt(t.amount)}</div>
+  </div>`;
+}
+
+function wireBreakdownClicks(listEl){
+  listEl.querySelectorAll('.breakdown-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const [y,m] = row.dataset.month.split('-').map(Number);
+      goMonth(new Date(y, m-1, 1));
+    });
+  });
+}
+
 function renderBreakdown(){
   const type = breakdownType;
   const items = allTx.filter(t => t.type === type)
     .sort((a,b)=> (b.monthKey||'').localeCompare(a.monthKey||''));
 
-  const rawTotal = items.reduce((s,t)=>s+t.amount,0);
-  let totalLine = 'कुल: ' + fmt(rawTotal);
-  if(type === 'invest'){
-    const returnsTotal = allTx.filter(t=>t.type==='income' && t.isReturn).reduce((s,t)=>s+t.amount,0);
-    totalLine = 'कुल निवेश किया: ' + fmt(rawTotal) + '  •  लौटा: ' + fmt(returnsTotal) + '  •  जारी (Live): ' + fmt(rawTotal - returnsTotal);
-  }
-  $('breakdownTotal').textContent = totalLine;
-
   const listEl = $('breakdownList');
+
   if(items.length === 0){
+    $('breakdownTotal').textContent = 'कुल: ' + fmt(0);
     listEl.innerHTML = `<div class="empty-dash">अभी कोई ${TYPE_LABEL[type]} एंट्री नहीं है।</div>`;
     return;
   }
 
-  listEl.innerHTML = items.map(t=>{
-    const lbl = t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type];
-    let statusTag = '';
-    if(type === 'invest'){
-      const returned = investmentReturnedAmount(t.id, null);
-      const remaining = t.amount - returned;
-      if(returned <= 0.0005){
-        statusTag = `<span class="mode-tag">● जारी (Live) — कुछ वापस नहीं आया</span>`;
-      } else if(remaining <= 0.0005){
-        statusTag = `<span class="mode-tag" style="color:var(--income); background:var(--income-bg);">✓ पूरा वापस आया — ${fmt(returned)}</span>`;
-      } else {
-        statusTag = `<span class="mode-tag" style="color:var(--gold); background:#FBF3DE;">◐ आंशिक — ${fmt(returned)} वापस आया, ${fmt(remaining)} अभी Live</span>`;
-      }
-    }
-    if(type === 'income' && t.isReturn){
-      const inv = t.returnOf ? allTx.find(i => i.id === t.returnOf) : null;
-      statusTag = inv
-        ? `<span class="mode-tag" style="color:var(--gold);">↩ निवेश वापसी — ${escapeHtml((inv.label||'निवेश').split('\n')[0])}</span>`
-        : `<span class="mode-tag" style="color:var(--gold);">↩ निवेश वापसी</span>`;
-    }
-    return `<div class="month-row breakdown-row">
-      <div class="b-left">
-        <div class="m-name">${lbl}</div>
-        <div class="b-month">${monthLabelFromKey(t.monthKey)}</div>
-        ${statusTag}
-      </div>
-      <div class="m-bal">${fmt(t.amount)}</div>
-    </div>`;
-  }).join('');
+  if(type === 'invest'){
+    const rawTotal = items.reduce((s,t)=>s+t.amount,0);
+    const returnsTotal = allTx.filter(t=>t.type==='income' && t.isReturn).reduce((s,t)=>s+t.amount,0);
+    $('breakdownTotal').textContent =
+      'कुल निवेश किया: ' + fmt(rawTotal) + '  •  लौटा: ' + fmt(returnsTotal) + '  •  जारी (Live): ' + fmt(rawTotal - returnsTotal);
 
-  listEl.querySelectorAll('.breakdown-row').forEach((row, i)=>{
-    row.addEventListener('click', ()=>{
-      const t = items[i];
-      const [y,m] = t.monthKey.split('-').map(Number);
-      goMonth(new Date(y, m-1, 1));
+    const live = [], complete = [];
+    items.forEach(t=>{
+      const remaining = t.amount - investmentReturnedAmount(t.id, null);
+      (remaining > 0.0005 ? live : complete).push(t);
     });
-  });
+
+    let html = '';
+    html += `<div class="months-title" style="margin-top:0;">🟢 जारी / आंशिक (Live) <span class="count">(${live.length})</span></div>`;
+    html += live.length ? live.map(investRowHtml).join('') : `<div class="empty-dash">कोई नहीं</div>`;
+    html += `<div class="months-title">✓ पूरा वापस आया (Complete)</div>`;
+    html += complete.length ? complete.map(investRowHtml).join('') : `<div class="empty-dash">कोई नहीं</div>`;
+    listEl.innerHTML = html;
+  } else {
+    const rawTotal = items.reduce((s,t)=>s+t.amount,0);
+    $('breakdownTotal').textContent = 'कुल: ' + fmt(rawTotal);
+    listEl.innerHTML = items.map(t => (type==='income' && t.isReturn) ? incomeReturnRowHtml(t) : plainRowHtml(t)).join('');
+  }
+
+  wireBreakdownClicks(listEl);
 }
 
 $('brandHome').addEventListener('click', goDashboard);
@@ -991,11 +1031,24 @@ function populateReturnOfOptions(){
   const sel = $('fReturnOf');
   const current = sel.value;
   const items = liveInvestmentEntries(editingId);
-  sel.innerHTML = '<option value="">— कोई नहीं चुना —</option>' + items.map(t=>{
-    const lbl = (t.label ? t.label.split('\n')[0] : 'निवेश');
-    const partialNote = t.returned > 0.0005 ? `, ${fmt(t.returned)} पहले ही वापस आ चुका` : '';
-    return `<option value="${t.id}">${escapeHtml(lbl)} — बचा ${fmt(t.remaining)} (कुल ${fmt(t.amount)}${partialNote}, ${monthLabelFromKey(t.monthKey)})</option>`;
-  }).join('');
+
+  const byMonth = {};
+  items.forEach(t=>{
+    (byMonth[t.monthKey] = byMonth[t.monthKey] || []).push(t);
+  });
+  const months = Object.keys(byMonth).sort().reverse();
+
+  let html = '<option value="">— कोई नहीं चुना —</option>';
+  months.forEach(mk=>{
+    html += `<optgroup label="📅 ${monthLabelFromKey(mk)}">`;
+    byMonth[mk].forEach(t=>{
+      const lbl = (t.label ? t.label.split('\n')[0] : 'निवेश');
+      const partial = t.returned > 0.0005 ? ' (आंशिक)' : '';
+      html += `<option value="${t.id}">${escapeHtml(lbl)}${partial} · बचा ${fmt(t.remaining)} / कुल ${fmt(t.amount)}</option>`;
+    });
+    html += '</optgroup>';
+  });
+  sel.innerHTML = html;
   if(items.some(t=>t.id===current)) sel.value = current;
 }
 

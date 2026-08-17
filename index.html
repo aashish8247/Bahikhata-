@@ -827,10 +827,29 @@ function renderRange(){
   const invest = investRaw - returnsInRange;
   const net = income - expense - invest;
 
-  const monthCount = allKnownMonthKeys().filter(k=> k>=from && k<=to).length;
+  const monthKeysInRange = allKnownMonthKeys().filter(k=> k>=from && k<=to).sort();
+  const monthCount = monthKeysInRange.length;
   const investSub = returnsInRange > 0.0005
     ? `<div class="dash-sub">इसमें ${fmt(investRaw)} नया निवेश − ${fmt(returnsInRange)} वापसी शामिल है (पुराने निवेश की वापसी भी हो सकती है)</div>`
     : '';
+
+  const monthRows = monthKeysInRange.map(key=>{
+    const [y,m] = key.split('-').map(Number);
+    const d = new Date(y, m-1, 1);
+    const t = totalsFor(d);
+    const mReturns = txForMonth(d).filter(x=>x.type==='income' && x.isReturn).reduce((s,x)=>s+x.amount,0);
+    const mIncome = t.income - mReturns;
+    return `<div class="month-row range-month-row" data-key="${key}">
+      <div class="b-left">
+        <div class="m-name">${monthLabelFromKey(key)}</div>
+        <div class="b-month" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:4px;">
+          <span style="color:var(--income);">आय ${fmt(mIncome)}</span>
+          <span style="color:var(--expense);">खर्च ${fmt(t.expense)}</span>
+          <span style="color:var(--invest);">निवेश ${fmt(t.invest - mReturns)}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
 
   resultEl.innerHTML = `
     <div class="range-totals">
@@ -852,8 +871,16 @@ function renderRange(){
         <div class="dash-value" style="color:${net>=0?'var(--ink)':'var(--expense)'}">${fmt(net)}</div>
       </div>
     </div>
-    <div class="months-title">${monthCount} महीने का हिसाब</div>
+    <div class="months-title">${monthCount} महीने का हिसाब, महीना-दर-महीना</div>
+    ${monthRows || '<div class="empty-dash">इस बीच कोई एंट्री नहीं मिली।</div>'}
   `;
+
+  resultEl.querySelectorAll('.range-month-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const [y,m] = row.dataset.key.split('-').map(Number);
+      goMonth(new Date(y, m-1, 1));
+    });
+  });
 }
 
 $('openRangeBtn').addEventListener('click', goRange);

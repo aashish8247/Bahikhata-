@@ -160,6 +160,16 @@
   }
   .open-month-btn:hover{ background:#28395e; }
   .backup-row{ display:flex; gap:10px; margin-top:10px; }
+  .range-picker{
+    display:flex; gap:10px; align-items:flex-end; margin-top:20px;
+    background:var(--card); padding:16px; border-radius:12px; box-shadow:var(--shadow);
+    flex-wrap:wrap;
+  }
+  .range-picker > div{ flex:1; min-width:120px; }
+  .range-picker .open-month-btn{ margin-top:0; flex:1; min-width:100px; padding:11px; }
+  .range-totals{
+    margin-top:18px; display:grid; grid-template-columns:repeat(2,1fr); gap:12px;
+  }
   .backup-btn{
     flex:1; padding:11px; border:1px solid #D8D0BE; border-radius:8px;
     background:var(--card); color:var(--ink-soft);
@@ -406,6 +416,10 @@
     <button class="icon-btn" id="backToDash2" title="Dashboard">🏠</button>
     <div class="month-label" id="breakdownTitle">—</div>
   </div>
+  <div class="month-nav" id="rangeNav" style="display:none">
+    <button class="icon-btn" id="backToDash3" title="Dashboard">🏠</button>
+    <div class="month-label">कस्टम Range</div>
+  </div>
 </header>
 
 <main style="display:none">
@@ -433,6 +447,7 @@
     </div>
 
     <button class="open-month-btn" id="openCurrentMonth">+ इस महीने की एंट्री खोलें / जोड़ें</button>
+    <button class="open-month-btn" id="openRangeBtn" style="background:transparent; color:var(--ink); border:1px solid #D8D0BE; margin-top:10px;">📊 कुछ महीनों/साल का हिसाब देखें (Range)</button>
 
     <div class="backup-row">
       <button class="backup-btn" id="exportBtn">⬇ Backup लें (Export)</button>
@@ -449,6 +464,22 @@
   <section id="breakdownScreen" style="display:none">
     <div class="months-title" id="breakdownTotal">कुल: KD 0.000</div>
     <div id="breakdownList"></div>
+  </section>
+
+  <!-- ===== RANGE SCREEN ===== -->
+  <section id="rangeScreen" style="display:none">
+    <div class="range-picker">
+      <div>
+        <label>शुरू (From)</label>
+        <input type="month" id="rangeFrom">
+      </div>
+      <div>
+        <label>आख़िर (To)</label>
+        <input type="month" id="rangeTo">
+      </div>
+      <button class="open-month-btn" id="rangeShowBtn">दिखाएं</button>
+    </div>
+    <div id="rangeResult"></div>
   </section>
 
   <!-- ===== MONTH SCREEN ===== -->
@@ -716,8 +747,10 @@ function goDashboard(){
   $('dashboardScreen').style.display = '';
   $('monthScreen').style.display = 'none';
   $('breakdownScreen').style.display = 'none';
+  $('rangeScreen').style.display = 'none';
   $('monthNav').style.display = 'none';
   $('breakdownNav').style.display = 'none';
+  $('rangeNav').style.display = 'none';
   renderDashboard();
 }
 
@@ -728,8 +761,10 @@ function goMonth(date){
   $('dashboardScreen').style.display = 'none';
   $('monthScreen').style.display = '';
   $('breakdownScreen').style.display = 'none';
+  $('rangeScreen').style.display = 'none';
   $('monthNav').style.display = 'flex';
   $('breakdownNav').style.display = 'none';
+  $('rangeNav').style.display = 'none';
   resetForm();
   renderMonth();
 }
@@ -741,11 +776,91 @@ function goBreakdown(type){
   $('dashboardScreen').style.display = 'none';
   $('monthScreen').style.display = 'none';
   $('breakdownScreen').style.display = '';
+  $('rangeScreen').style.display = 'none';
   $('monthNav').style.display = 'none';
   $('breakdownNav').style.display = 'flex';
+  $('rangeNav').style.display = 'none';
   $('breakdownTitle').textContent = 'कुल ' + TYPE_LABEL[type] + ' — पूरी लिस्ट';
   renderBreakdown();
 }
+
+function goRange(){
+  screen = 'range';
+  $('dashboardScreen').style.display = 'none';
+  $('monthScreen').style.display = 'none';
+  $('breakdownScreen').style.display = 'none';
+  $('rangeScreen').style.display = '';
+  $('monthNav').style.display = 'none';
+  $('breakdownNav').style.display = 'none';
+  $('rangeNav').style.display = 'flex';
+  if(!$('rangeFrom').value || !$('rangeTo').value){
+    const keys = allKnownMonthKeys().sort();
+    if(keys.length){
+      $('rangeFrom').value = keys[0];
+      $('rangeTo').value = keys[keys.length-1];
+    } else {
+      const mk = monthKey(new Date());
+      $('rangeFrom').value = mk;
+      $('rangeTo').value = mk;
+    }
+  }
+  renderRange();
+}
+
+function renderRange(){
+  const from = $('rangeFrom').value;
+  const to = $('rangeTo').value;
+  const resultEl = $('rangeResult');
+  if(!from || !to){
+    resultEl.innerHTML = `<div class="empty-dash">शुरू और आख़िर, दोनों महीने चुनें।</div>`;
+    return;
+  }
+  if(from > to){
+    resultEl.innerHTML = `<div class="empty-dash">"शुरू" वाला महीना "आख़िर" से पहले का होना चाहिए।</div>`;
+    return;
+  }
+  const inRange = allTx.filter(t => t.monthKey >= from && t.monthKey <= to);
+  const returnsInRange = inRange.filter(t=>t.type==='income' && t.isReturn).reduce((s,t)=>s+t.amount,0);
+  const income = inRange.filter(t=>t.type==='income' && !t.isReturn).reduce((s,t)=>s+t.amount,0);
+  const expense = inRange.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+  const investRaw = inRange.filter(t=>t.type==='invest').reduce((s,t)=>s+t.amount,0);
+  const invest = investRaw - returnsInRange;
+  const net = income - expense - invest;
+
+  const monthCount = allKnownMonthKeys().filter(k=> k>=from && k<=to).length;
+  const investSub = returnsInRange > 0.0005
+    ? `<div class="dash-sub">इसमें ${fmt(investRaw)} नया निवेश − ${fmt(returnsInRange)} वापसी शामिल है (पुराने निवेश की वापसी भी हो सकती है)</div>`
+    : '';
+
+  resultEl.innerHTML = `
+    <div class="range-totals">
+      <div class="dash-card income">
+        <div class="dash-label">आय (${monthLabelFromKey(from)} – ${monthLabelFromKey(to)})</div>
+        <div class="dash-value">${fmt(income)}</div>
+      </div>
+      <div class="dash-card expense">
+        <div class="dash-label">खर्च</div>
+        <div class="dash-value">${fmt(expense)}</div>
+      </div>
+      <div class="dash-card invest">
+        <div class="dash-label">निवेश (नया − वापसी)</div>
+        <div class="dash-value">${fmt(invest)}</div>
+        ${investSub}
+      </div>
+      <div class="dash-card balance">
+        <div class="dash-label">बचत (आय − खर्च − निवेश)</div>
+        <div class="dash-value" style="color:${net>=0?'var(--ink)':'var(--expense)'}">${fmt(net)}</div>
+      </div>
+    </div>
+    <div class="months-title">${monthCount} महीने का हिसाब</div>
+  `;
+}
+
+$('openRangeBtn').addEventListener('click', goRange);
+$('backToDash3').addEventListener('click', goDashboard);
+$('rangeShowBtn').addEventListener('click', renderRange);
+$('rangeFrom').addEventListener('change', renderRange);
+$('rangeTo').addEventListener('change', renderRange);
 
 function investRowHtml(t){
   const lbl = t.label ? escapeHtml(t.label).replace(/\n/g,'<br>') : TYPE_LABEL[t.type];

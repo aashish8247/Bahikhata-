@@ -194,6 +194,22 @@
     font-size:17px; font-weight:600;
     margin:26px 0 10px;
   }
+  .year-group{ margin-bottom:10px; }
+  .year-summary{
+    font-family:'Fraunces', serif;
+    font-size:16px; font-weight:600;
+    padding:11px 16px;
+    background:var(--ink); color:var(--paper);
+    border-radius:8px;
+    cursor:pointer;
+    list-style:none;
+    display:flex; align-items:center; gap:8px;
+  }
+  .year-summary::-webkit-details-marker{ display:none; }
+  .year-summary::before{ content:'▸'; color:var(--gold-soft); transition:transform .15s; }
+  .year-group[open] > .year-summary::before{ transform:rotate(90deg); }
+  .year-count{ font-family:'Inter',sans-serif; font-size:12px; color:var(--gold-soft); font-weight:500; }
+  .year-rows{ margin-top:6px; }
   .month-row{
     display:flex; align-items:center; justify-content:space-between;
     background:var(--card);
@@ -1066,16 +1082,31 @@ function renderDashboard(){
     listEl.innerHTML = `<div class="empty-dash">अभी कोई महीना दर्ज नहीं है — ऊपर बटन से शुरू करें।</div>`;
     return;
   }
-  listEl.innerHTML = keys.map(key=>{
-    const [y,m] = key.split('-').map(Number);
-    const d = new Date(y, m-1, 1);
-    const bal = balanceFor(d);
-    const negClass = bal.closing < 0 ? 'neg' : '';
-    return `<div class="month-row" data-key="${key}">
-      <div class="m-name">${monthLabelFromKey(key)}</div>
-      <div class="m-bal ${negClass}">${fmt(bal.closing)}</div>
-    </div>`;
+
+  const byYear = {};
+  keys.forEach(key=>{
+    const y = key.split('-')[0];
+    (byYear[y] = byYear[y] || []).push(key);
+  });
+  const years = Object.keys(byYear).sort().reverse();
+
+  listEl.innerHTML = years.map((y, idx)=>{
+    const rows = byYear[y].map(key=>{
+      const [yy,m] = key.split('-').map(Number);
+      const d = new Date(yy, m-1, 1);
+      const bal = balanceFor(d);
+      const negClass = bal.closing < 0 ? 'neg' : '';
+      return `<div class="month-row" data-key="${key}">
+        <div class="m-name">${monthLabelFromKey(key)}</div>
+        <div class="m-bal ${negClass}">${fmt(bal.closing)}</div>
+      </div>`;
+    }).join('');
+    return `<details class="year-group" ${idx===0 ? 'open' : ''}>
+      <summary class="year-summary">${y} <span class="year-count">(${byYear[y].length} महीने)</span></summary>
+      <div class="year-rows">${rows}</div>
+    </details>`;
   }).join('');
+
   listEl.querySelectorAll('.month-row').forEach(row=>{
     row.addEventListener('click', ()=>{
       const [y,m] = row.dataset.key.split('-').map(Number);
@@ -1274,10 +1305,14 @@ $('addForm').addEventListener('submit', (e)=>{
 });
 
 function deleteEntry(id){
+  const entry = allTx.find(t => t.id === id);
+  const desc = entry ? (TYPE_LABEL[entry.type] + ' — ' + fmt(entry.amount) + (entry.label ? ' (' + entry.label.split('\n')[0] + ')' : '')) : 'यह एंट्री';
+  if(!confirm('क्या आप पक्का हटाना चाहते हैं?\n\n' + desc)) return;
   entriesCol().doc(id).delete()
     .then(()=>{
       if(editingId === id) resetForm();
       renderMonth();
+      toast('एंट्री हटा दी गई');
     })
     .catch(err=>{
       toast('Delete nahi hua, internet check karein');

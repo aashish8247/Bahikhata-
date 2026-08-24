@@ -306,6 +306,35 @@
   .carry-input-row .cancel-b{ background:rgba(255,255,255,0.15); color:var(--paper); }
   .carry-note{ text-align:center; font-size:11px; color:var(--ink-soft); margin-top:8px; }
 
+  .note-panel{
+    background:#FBF7E9; border:1px dashed var(--gold-soft); border-radius:12px;
+    margin-top:16px; padding:14px 16px;
+  }
+  .note-head{ font-size:12.5px; font-weight:700; color:var(--ink); margin-bottom:8px; }
+  .note-panel textarea{ background:#fff; }
+  .note-save-btn{
+    padding:9px 16px; border:none; border-radius:7px;
+    background:var(--gold); color:#fff; font-weight:600; font-size:12.5px; cursor:pointer;
+  }
+  .note-save-btn:hover{ background:#9c7209; }
+  .note-cancel-btn{
+    padding:9px 16px; border:1px solid #D8D0BE; border-radius:7px;
+    background:#fff; color:var(--ink-soft); font-weight:600; font-size:12.5px; cursor:pointer;
+  }
+  .note-card{
+    background:var(--card); border-radius:10px; padding:12px 14px;
+    margin-bottom:8px; box-shadow:var(--shadow);
+    display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+  }
+  .note-card .n-text{ font-size:13.5px; line-height:1.5; white-space:pre-wrap; flex:1; }
+  .note-card .n-actions{ display:flex; gap:4px; flex-shrink:0; }
+  .note-card .n-actions button{
+    width:26px;height:26px;border-radius:50%;border:none;
+    background:transparent; color:var(--ink-soft); cursor:pointer; font-size:14px;
+  }
+  .note-card .n-actions .n-edit:hover{ background:var(--invest-bg); color:var(--invest); }
+  .note-card .n-actions .n-del:hover{ background:var(--expense-bg); color:var(--expense); }
+
   /* ===== Add form ===== */
   .add-panel{
     background:var(--card);
@@ -436,6 +465,10 @@
     <button class="icon-btn" id="backToDash3" title="Dashboard">🏠</button>
     <div class="month-label">कस्टम Range</div>
   </div>
+  <div class="month-nav" id="notesNav" style="display:none">
+    <button class="icon-btn" id="backToDash4" title="Dashboard">🏠</button>
+    <div class="month-label">नोट्स</div>
+  </div>
 </header>
 
 <main style="display:none">
@@ -464,6 +497,7 @@
 
     <button class="open-month-btn" id="openCurrentMonth">+ इस महीने की एंट्री खोलें / जोड़ें</button>
     <button class="open-month-btn" id="openRangeBtn" style="background:transparent; color:var(--ink); border:1px solid #D8D0BE; margin-top:10px;">📊 कुछ महीनों/साल का हिसाब देखें (Range)</button>
+    <button class="open-month-btn" id="openNotesBtn" style="background:transparent; color:var(--ink); border:1px solid #D8D0BE; margin-top:10px;">📝 नोट्स देखें</button>
 
     <div class="backup-row">
       <button class="backup-btn" id="exportBtn">⬇ Backup लें (Export)</button>
@@ -496,6 +530,20 @@
       <button class="open-month-btn" id="rangeShowBtn">दिखाएं</button>
     </div>
     <div id="rangeResult"></div>
+  </section>
+
+  <!-- ===== NOTES SCREEN ===== -->
+  <section id="notesScreen" style="display:none">
+    <section class="note-panel">
+      <div class="note-head" id="noteFormTag">नया नोट लिखें</div>
+      <textarea id="fNoteText" rows="4" placeholder="यहां कुछ भी लिखें..."></textarea>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <button type="button" class="note-save-btn" id="saveNoteBtn">जोड़ें</button>
+        <button type="button" class="note-cancel-btn" id="cancelNoteBtn" style="display:none;">रद्द करें</button>
+      </div>
+    </section>
+    <div class="months-title">सभी नोट्स</div>
+    <div id="notesList"></div>
   </section>
 
   <!-- ===== MONTH SCREEN ===== -->
@@ -624,7 +672,8 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 try{ db.enablePersistence({ synchronizeTabs: true }); }catch(e){ /* offline cache not available */ }
 
-let unsubEntries = null, unsubMeta = null;
+let unsubEntries = null, unsubMeta = null, unsubNotes = null;
+let allNotes = [];
 
 const $ = (id) => document.getElementById(id);
 function fmt(n){
@@ -652,6 +701,7 @@ function generateSyncCode(){
 
 function ledgerDoc(){ return db.collection(LEDGER_ROOT).doc(syncCode); }
 function entriesCol(){ return ledgerDoc().collection('entries'); }
+function notesCol(){ return ledgerDoc().collection('notes'); }
 
 function startSync(){
   $('syncStatus').innerHTML = 'Sync Code: <b>' + syncCode + '</b> (टैप करके बदलें)';
@@ -663,12 +713,18 @@ function startSync(){
     allTx = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderAll();
   }, err=> showFatalError('Sync (entries) error: ' + err.message));
+  unsubNotes = notesCol().onSnapshot(snap=>{
+    allNotes = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a,b)=> (b.updatedAt||0) - (a.updatedAt||0));
+    if(screen === 'notes') renderNotes();
+  }, err=> showFatalError('Sync (notes) error: ' + err.message));
 }
 
 function stopSync(){
   if(unsubEntries) unsubEntries();
   if(unsubMeta) unsubMeta();
-  unsubEntries = null; unsubMeta = null;
+  if(unsubNotes) unsubNotes();
+  unsubEntries = null; unsubMeta = null; unsubNotes = null;
 }
 
 function showSyncSetup(){
@@ -764,9 +820,11 @@ function goDashboard(){
   $('monthScreen').style.display = 'none';
   $('breakdownScreen').style.display = 'none';
   $('rangeScreen').style.display = 'none';
+  $('notesScreen').style.display = 'none';
   $('monthNav').style.display = 'none';
   $('breakdownNav').style.display = 'none';
   $('rangeNav').style.display = 'none';
+  $('notesNav').style.display = 'none';
   renderDashboard();
 }
 
@@ -778,9 +836,11 @@ function goMonth(date){
   $('monthScreen').style.display = '';
   $('breakdownScreen').style.display = 'none';
   $('rangeScreen').style.display = 'none';
+  $('notesScreen').style.display = 'none';
   $('monthNav').style.display = 'flex';
   $('breakdownNav').style.display = 'none';
   $('rangeNav').style.display = 'none';
+  $('notesNav').style.display = 'none';
   resetForm();
   renderMonth();
 }
@@ -793,9 +853,11 @@ function goBreakdown(type){
   $('monthScreen').style.display = 'none';
   $('breakdownScreen').style.display = '';
   $('rangeScreen').style.display = 'none';
+  $('notesScreen').style.display = 'none';
   $('monthNav').style.display = 'none';
   $('breakdownNav').style.display = 'flex';
   $('rangeNav').style.display = 'none';
+  $('notesNav').style.display = 'none';
   $('breakdownTitle').textContent = 'कुल ' + TYPE_LABEL[type] + ' — पूरी लिस्ट';
   renderBreakdown();
 }
@@ -806,9 +868,11 @@ function goRange(){
   $('monthScreen').style.display = 'none';
   $('breakdownScreen').style.display = 'none';
   $('rangeScreen').style.display = '';
+  $('notesScreen').style.display = 'none';
   $('monthNav').style.display = 'none';
   $('breakdownNav').style.display = 'none';
   $('rangeNav').style.display = 'flex';
+  $('notesNav').style.display = 'none';
   if(!$('rangeFrom').value || !$('rangeTo').value){
     const keys = allKnownMonthKeys().sort();
     if(keys.length){
@@ -822,6 +886,86 @@ function goRange(){
   }
   renderRange();
 }
+
+/* ---------- Notes ---------- */
+let editingNoteId = null;
+
+function goNotes(){
+  screen = 'notes';
+  $('dashboardScreen').style.display = 'none';
+  $('monthScreen').style.display = 'none';
+  $('breakdownScreen').style.display = 'none';
+  $('rangeScreen').style.display = 'none';
+  $('notesScreen').style.display = '';
+  $('monthNav').style.display = 'none';
+  $('breakdownNav').style.display = 'none';
+  $('rangeNav').style.display = 'none';
+  $('notesNav').style.display = 'flex';
+  resetNoteForm();
+  renderNotes();
+}
+
+function resetNoteForm(){
+  editingNoteId = null;
+  $('fNoteText').value = '';
+  $('noteFormTag').textContent = 'नया नोट लिखें';
+  $('saveNoteBtn').textContent = 'जोड़ें';
+  $('cancelNoteBtn').style.display = 'none';
+}
+
+function editNote(id){
+  const n = allNotes.find(x => x.id === id);
+  if(!n) return;
+  editingNoteId = id;
+  $('fNoteText').value = n.text || '';
+  $('noteFormTag').textContent = '✎ नोट एडिट हो रहा है';
+  $('saveNoteBtn').textContent = 'अपडेट करें';
+  $('cancelNoteBtn').style.display = '';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function deleteNote(id){
+  if(!confirm('क्या इस नोट को हटाना है?')) return;
+  notesCol().doc(id).delete()
+    .then(()=>{
+      if(editingNoteId === id) resetNoteForm();
+      toast('नोट हटा दिया गया');
+    })
+    .catch(()=> toast('Delete nahi hua, internet check karein'));
+}
+
+$('cancelNoteBtn').addEventListener('click', resetNoteForm);
+
+$('saveNoteBtn').addEventListener('click', ()=>{
+  const text = $('fNoteText').value.trim();
+  if(!text){ toast('कृपया कुछ लिखें'); return; }
+  const id = editingNoteId || (Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+  notesCol().doc(id).set({ text, updatedAt: Date.now() })
+    .then(()=>{
+      toast(editingNoteId ? 'नोट अपडेट हुआ' : 'नोट जोड़ा गया');
+      resetNoteForm();
+    })
+    .catch(()=> toast('Save nahi hua, internet check karein'));
+});
+
+function renderNotes(){
+  const listEl = $('notesList');
+  if(allNotes.length === 0){
+    listEl.innerHTML = `<div class="empty-dash">अभी कोई नोट नहीं है — ऊपर से जोड़ें।</div>`;
+    return;
+  }
+  listEl.innerHTML = allNotes.map(n => `
+    <div class="note-card">
+      <div class="n-text">${escapeHtml(n.text || '').replace(/\n/g,'<br>')}</div>
+      <div class="n-actions">
+        <button class="n-edit" title="एडिट करें" onclick="editNote('${n.id}')">✎</button>
+        <button class="n-del" title="हटाएं" onclick="deleteNote('${n.id}')">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+$('openNotesBtn').addEventListener('click', goNotes);
+$('backToDash4').addEventListener('click', goDashboard);
 
 function renderRange(){
   const from = $('rangeFrom').value;

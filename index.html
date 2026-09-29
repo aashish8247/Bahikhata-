@@ -814,6 +814,7 @@ function balanceFor(targetDate){
 
 /* ---------- screen switching ---------- */
 function goDashboard(){
+  window.scrollTo(0, 0);
   screen = 'dashboard';
   editingId = null;
   $('dashboardScreen').style.display = '';
@@ -829,6 +830,7 @@ function goDashboard(){
 }
 
 function goMonth(date){
+  window.scrollTo(0, 0);
   screen = 'month';
   viewDate = date;
   editingId = null;
@@ -847,6 +849,7 @@ function goMonth(date){
 
 let breakdownType = 'income';
 function goBreakdown(type){
+  window.scrollTo(0, 0);
   screen = 'breakdown';
   breakdownType = type;
   $('dashboardScreen').style.display = 'none';
@@ -863,6 +866,7 @@ function goBreakdown(type){
 }
 
 function goRange(){
+  window.scrollTo(0, 0);
   screen = 'range';
   $('dashboardScreen').style.display = 'none';
   $('monthScreen').style.display = 'none';
@@ -891,6 +895,7 @@ function goRange(){
 let editingNoteId = null;
 
 function goNotes(){
+  window.scrollTo(0, 0);
   screen = 'notes';
   $('dashboardScreen').style.display = 'none';
   $('monthScreen').style.display = 'none';

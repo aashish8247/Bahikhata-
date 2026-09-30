@@ -43,7 +43,7 @@
     font-family:'Inter', sans-serif;
     color:var(--ink);
     min-height:100vh;
-    padding-bottom:60px;
+    padding-bottom:88px;
   }
   ::selection{ background:var(--gold-soft); }
 
@@ -116,7 +116,27 @@
   .month-today:hover{ background:rgba(217,182,92,0.12); }
 
   /* ===== Layout ===== */
-  main{ max-width:900px; margin:0 auto; padding:0 20px; }
+  main{ max-width:900px; margin:0 auto; padding:0 20px; padding-bottom:90px; }
+
+  .bottom-nav{
+    position:fixed; left:0; right:0; bottom:0; z-index:500;
+    display:flex;
+    background:var(--card);
+    border-top:1px solid var(--paper-line);
+    box-shadow: 0 -2px 10px rgba(27,42,74,0.08);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .bn-item{
+    flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:2px; padding:9px 4px 8px;
+    background:none; border:none; cursor:pointer;
+    font-family:'Inter',sans-serif;
+    color:var(--ink-soft);
+  }
+  .bn-icon{ font-size:20px; line-height:1; filter:grayscale(60%); opacity:0.75; }
+  .bn-label{ font-size:11px; font-weight:600; }
+  .bn-item.active{ color:var(--gold); }
+  .bn-item.active .bn-icon{ filter:none; opacity:1; }
 
   /* ===== Dashboard ===== */
   .dash-totals{
@@ -419,7 +439,7 @@
   }
 
   .toast{
-    position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+    position:fixed; bottom:78px; left:50%; transform:translateX(-50%) translateY(20px);
     background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:8px;
     font-size:13px; opacity:0; transition:all .25s; pointer-events:none; box-shadow:var(--shadow);
     max-width:90%; text-align:center; z-index:2000;
@@ -631,6 +651,25 @@
 
 </main>
 
+<nav class="bottom-nav" id="bottomNav" style="display:none">
+  <button class="bn-item" id="bnHome" data-screen="dashboard">
+    <span class="bn-icon">🏠</span>
+    <span class="bn-label">Home</span>
+  </button>
+  <button class="bn-item" id="bnMonth" data-screen="month">
+    <span class="bn-icon">📅</span>
+    <span class="bn-label">Month</span>
+  </button>
+  <button class="bn-item" id="bnRange" data-screen="range">
+    <span class="bn-icon">📊</span>
+    <span class="bn-label">Range</span>
+  </button>
+  <button class="bn-item" id="bnNotes" data-screen="notes">
+    <span class="bn-icon">📝</span>
+    <span class="bn-label">Notes</span>
+  </button>
+</nav>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -730,6 +769,7 @@ function stopSync(){
 function showSyncSetup(){
   document.querySelector('header').style.display = 'none';
   document.querySelector('main').style.display = 'none';
+  $('bottomNav').style.display = 'none';
   $('syncSetupScreen').style.display = '';
 }
 
@@ -738,6 +778,7 @@ function completeSyncSetup(code){
   localStorage.setItem(SYNC_KEY, code);
   document.querySelector('header').style.display = '';
   document.querySelector('main').style.display = '';
+  $('bottomNav').style.display = 'flex';
   $('syncSetupScreen').style.display = 'none';
   startSync();
   goDashboard();
@@ -813,6 +854,12 @@ function balanceFor(targetDate){
 }
 
 /* ---------- screen switching ---------- */
+function setActiveTab(name){
+  document.querySelectorAll('.bn-item').forEach(b=>{
+    b.classList.toggle('active', b.dataset.screen === name);
+  });
+}
+
 function goDashboard(){
   window.scrollTo(0, 0);
   screen = 'dashboard';
@@ -826,6 +873,7 @@ function goDashboard(){
   $('breakdownNav').style.display = 'none';
   $('rangeNav').style.display = 'none';
   $('notesNav').style.display = 'none';
+  setActiveTab('dashboard');
   renderDashboard();
 }
 
@@ -843,6 +891,7 @@ function goMonth(date){
   $('breakdownNav').style.display = 'none';
   $('rangeNav').style.display = 'none';
   $('notesNav').style.display = 'none';
+  setActiveTab('month');
   resetForm();
   renderMonth();
 }
@@ -861,6 +910,7 @@ function goBreakdown(type){
   $('breakdownNav').style.display = 'flex';
   $('rangeNav').style.display = 'none';
   $('notesNav').style.display = 'none';
+  setActiveTab('dashboard');
   $('breakdownTitle').textContent = 'कुल ' + TYPE_LABEL[type] + ' — पूरी लिस्ट';
   renderBreakdown();
 }
@@ -877,6 +927,7 @@ function goRange(){
   $('breakdownNav').style.display = 'none';
   $('rangeNav').style.display = 'flex';
   $('notesNav').style.display = 'none';
+  setActiveTab('range');
   if(!$('rangeFrom').value || !$('rangeTo').value){
     const keys = allKnownMonthKeys().sort();
     if(keys.length){
@@ -906,6 +957,7 @@ function goNotes(){
   $('breakdownNav').style.display = 'none';
   $('rangeNav').style.display = 'none';
   $('notesNav').style.display = 'flex';
+  setActiveTab('notes');
   resetNoteForm();
   renderNotes();
 }
@@ -1153,6 +1205,10 @@ function renderBreakdown(){
 }
 
 $('brandHome').addEventListener('click', goDashboard);
+$('bnHome').addEventListener('click', goDashboard);
+$('bnMonth').addEventListener('click', ()=> goMonth(new Date()));
+$('bnRange').addEventListener('click', goRange);
+$('bnNotes').addEventListener('click', goNotes);
 $('backToDash').addEventListener('click', goDashboard);
 $('backToDash2').addEventListener('click', goDashboard);
 $('openCurrentMonth').addEventListener('click', ()=> goMonth(new Date()));
